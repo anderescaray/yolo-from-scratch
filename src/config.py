@@ -15,14 +15,14 @@ NUM_WORKERS = 0
 PIN_MEMORY = True
 LOAD_MODEL = False
 SAVE_MODEL = True
-CHECKPOINT_FILE = "checkpoints/checkpoint.pth.tar"
+CHECKPOINT_FILE = "../checkpoints/checkpoint.pth.tar"
 
 # Directorio donde están los csv 
-DATASET = "data"  
+DATASET = "../data"  
 # Directorio donde están las imágenes y los label
 
-IMG_DIR = "data/train"
-LABEL_DIR = "data/train"
+IMG_DIR = "../data/train"
+LABEL_DIR = "../data/train"
 
 LEARNING_RATE = 1e-4 
 WEIGHT_DECAY = 1e-4   
@@ -100,7 +100,6 @@ CONFIG = [
 ]
 
 #### DATA AUGMENTATION ####
-
 
 # ANCHORS
 # Estos son los tamaños de caja predefinidos (ancho, alto) calculados clusterizando 
