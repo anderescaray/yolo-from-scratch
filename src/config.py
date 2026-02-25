@@ -9,20 +9,22 @@ import torch
 import cv2
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+import os
 
 
 NUM_WORKERS = 0  
 PIN_MEMORY = True
-LOAD_MODEL = False
+LOAD_MODEL = True
 SAVE_MODEL = True
-CHECKPOINT_FILE = "../checkpoints/checkpoint.pth.tar"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CHECKPOINT_FILE = os.path.join(BASE_DIR, "checkpoints", "checkpoint.pth.tar")
 
 # Directorio donde están los csv 
-DATASET = "../data"  
+DATASET = os.path.join(BASE_DIR, "data")
 # Directorio donde están las imágenes y los label
 
-IMG_DIR = "../data/train"
-LABEL_DIR = "../data/train"
+IMG_DIR = os.path.join(DATASET, "train")
+LABEL_DIR = os.path.join(DATASET, "train")
 
 LEARNING_RATE = 1e-4 
 WEIGHT_DECAY = 1e-4   
