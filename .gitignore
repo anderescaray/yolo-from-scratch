@@ -1,0 +1,25 @@
+# Dataset
+data/
+
+saved_images/
+# Pesos y checkpoints
+checkpoints/
+*.pt
+*.pth
+*.weights
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Entornos virtuales
+venv/
+env/
+.env
+
+# VSCode
+.vscode/
