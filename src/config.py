@@ -78,6 +78,7 @@ CONFIG = [
     ["B", 8],                      #  x8 resblocks  --> guardar en route connections para luego detectar objetos medianos
     (1024, 3, 2),                  # 13 x 13 x 1024   aquí la red sabe mucho pero no ve la imagen, ve conceptos semánticos
     ["B", 4],       # Backbone Darknet-53 termina aquí
+    # PROBAR A CAMBIAR ESTE ULTIMO BLOQUE RESIDUAL POR CPSDarknet53
 
     # Aquí ya hemos acabado con la primera fase de embudo donde hemos comprimido la imagen
     # falta reconstruirla para saber dónde están los objetos que hemos detectado en la fase embudo 

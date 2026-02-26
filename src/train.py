@@ -17,7 +17,8 @@ from model import YOLOv3
 from tqdm import tqdm 
 from loss import YoloLoss
 import warnings
-
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 from utils import (
     mean_average_precision,

@@ -166,7 +166,7 @@ class YOLOv3(nn.Module):
 
         return layers
 
-# --- PRUEBA DE FUEGO (SANITY CHECK) ---
+# --- Sanity check ---
 if __name__ == "__main__":
     num_classes = 20 # Ejemplo
     IMAGE_SIZE = 416 # Tamaño estándar YOLO
