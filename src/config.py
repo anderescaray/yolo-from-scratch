@@ -14,7 +14,7 @@ import os
 
 NUM_WORKERS = 0  
 PIN_MEMORY = True
-LOAD_MODEL = True
+LOAD_MODEL = False
 SAVE_MODEL = True
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHECKPOINT_FILE = os.path.join(BASE_DIR, "checkpoints", "checkpoint.pth.tar")
@@ -28,8 +28,8 @@ LABEL_DIR = os.path.join(DATASET, "train")
 
 LEARNING_RATE = 1e-4 
 WEIGHT_DECAY = 1e-4   
-BATCH_SIZE = 8        
-NUM_EPOCHS = 100      
+BATCH_SIZE = 16        
+NUM_EPOCHS = 300      
 
 CONF_THRESHOLD = 0.5
 NMS_IOU_THRESH = 0.45   # Para limpiar cajas duplicadas con nms

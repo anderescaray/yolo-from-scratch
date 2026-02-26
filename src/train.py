@@ -43,7 +43,7 @@ def train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors):
     Args:
         train_loader: el Dataloader que nos da los batchs
         model: el modelo YOLOv3
-        optimizer: el Adam que actualiza los pesos
+        optimizer: el AdamW que actualiza los pesos
         loss_fn: YoloLoss
         scaler: Herramienta para Mixed Precision (fp16)
         scaled_anchors: las anclas ajustadas al tamaño de la rejilla (13, 26, 52)
@@ -94,12 +94,14 @@ def main():
     
     # Inicializar modelo, optimizador y pérdida
     model = YOLOv3(num_classes=config.NUM_CLASSES).to(config.DEVICE)
-    optimizer = optim.Adam(
-        model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY
-    )
+    #optimizer = optim.Adam(
+    #    model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY
+    #)
 
     # Pendiente de probar:
-    #optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY)
+    optimizer = optim.AdamW(
+        model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY
+        )
     
     loss_fn = YoloLoss()
     scaler = torch.cuda.amp.GradScaler() # Para fp16
