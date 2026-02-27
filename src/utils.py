@@ -580,7 +580,8 @@ def save_prediction_image(image, boxes, index):
         )
     
     # Guardar 
-    filename = f"../saved_images/prediccion_test_{index}.png"
+    filename = os.path.join(config.BASE_DIR, "saved_images", f"prediccion_test_{index}.png")
+    #filename = f"../saved_images/prediccion_test_{index}.png"
     plt.savefig(filename)
     plt.close() 
     print(f"Imagen guardada: {filename}")

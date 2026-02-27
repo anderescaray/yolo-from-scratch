@@ -1,14 +1,10 @@
 import os
 import pandas as pd
+import config
 
 def generate_csv(folder, output_name):
-    # Truco de ingeniero: 
-    # Usamos la ruta donde está ESTE archivo .py como base
-    # Así no importa desde qué terminal lo ejecutes.
-    base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Construimos la ruta completa: .../TFG/data/train
-    path = os.path.join(base_dir, "data", folder)
+    path = os.path.join(config.DATASET, folder)
     
     print(f"Buscando en: {path}")
 

@@ -1,267 +1,263 @@
-# 🛒 AutoCheckout: Self-Checkout System with YOLO Object Detection
+# 🛒 Vision-Based Self-Checkout System
+### Object Detection with Active Semi-Supervised Learning
 
-> Automated retail checkout system using custom-trained YOLO with active learning and semi-supervised training
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python" />
+  <img src="https://img.shields.io/badge/PyTorch-2.x-EE4C2C?style=flat-square&logo=pytorch" />
+  <img src="https://img.shields.io/badge/YOLO-v3%2Fv4%20from%20scratch-green?style=flat-square" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" />
+</p>
 
-![Demo GIF - grabación de tu webcam detectando productos]
-
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
-[![Python](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
----
-
-## 🎯 Project Overview
-
-An end-to-end computer vision system that enables **automatic product detection and pricing** for self-checkout applications. Built from scratch using YOLO architecture with a novel training approach combining:
-
-- **Transfer Learning** from generic retail dataset
-- **Active Learning** for efficient data labeling
-- **Semi-Supervised Learning** to leverage unlabeled data
-- **Clustering in latent space** for similar product grouping
-
-### Real-World Application
-Webcam-based detection system that automatically:
-1. Detects products passing through checkout
-2. Identifies product type
-3. Adds to shopping cart with pricing
-4. Fully containerized for deployment anywhere
+> **Bachelor's Final Thesis (TFG)** — A vision-only self-checkout system that identifies supermarket products in real time, built on a custom YOLO implementation and an Active Semi-Supervised Learning pipeline that drastically reduces the need for manual labelling.
 
 ---
 
-## 🏗️ System Architecture
+## 📋 Table of Contents
+
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Architecture](#-architecture)
+- [Active Semi-Supervised Learning Pipeline](#-active-semi-supervised-learning-pipeline)
+- [Project Structure](#-project-structure)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Results](#-results)
+- [Future Work](#-future-work)
+
+---
+
+## 🔍 Overview
+
+Traditional self-checkout systems rely on barcodes. This project explores a fully **vision-based** alternative: a camera observes products placed one at a time on a surface, the model identifies them, and a digital ticket is automatically built. The user pays at the end with no scanning required.
+
+The core challenge is **data**. Labelling thousands of product images by hand is impractical. To solve this, the project combines:
+
+- A **custom YOLO detector** (inspired by YOLOv3/v4) trained first on a generic product dataset and then fine-tuned on specific products.
+- An **Active Semi-Supervised Learning loop** that uses model confidence and deep clustering to maximise the value of every manual annotation.
+
+The result is a system capable of learning to recognise a new set of products with only a **small initial set of manually labelled images**, expanding its own dataset iteratively.
+
+---
+
+## ✨ Key Features
+
+- **YOLO from scratch** — Full reimplementation in PyTorch, no black-box dependencies.
+- **Two-stage training** — Generic pre-training followed by domain-specific fine-tuning with frozen backbone.
+- **Pseudo-labelling** — High-confidence detections on unlabelled images are automatically added to the training set.
+- **Deep Clustering for Active Learning** — Object crops are embedded via the backbone; similar products cluster together in latent space, allowing a human annotator to label only the cluster centroid and propagate labels to the rest.
+- **Real-time webcam inference** — Live product detection and ticket generation.
+- **Iterative self-improvement loop** — Each training cycle produces a better model, which in turn generates better pseudo-labels and more coherent clusters.
+
+---
+
+## 🏗️ Architecture
+
+### YOLO Model
+
+The detector is a hybrid of YOLOv3 and YOLOv4, implemented entirely from scratch in PyTorch. It uses:
+
+- A **Darknet-inspired backbone** for feature extraction, pre-trained on a generic dataset.
+- **Multi-scale prediction heads** for detecting objects at different sizes.
+- A custom **loss function** combining objectness, bounding box regression (CIoU), and classification losses.
+
+### Two-Stage Training
+
 ```
-[Webcam Input] → [YOLO Detector] → [Product Classifier] → [Shopping Cart + Pricing]
-                        ↓
-            [Active Learning Pipeline]
-                        ↓
-            [Semi-Supervised Training]
-                        ↓
-            [Model Retraining Loop]
+Stage 1 ─ Generic Dataset
+    │  Train full model (backbone + heads)
+    ▼
+Stage 2 ─ Specific Products
+    │  Freeze backbone weights
+    │  Replace output layer (new number of classes)
+    │  Fine-tune on small labelled set
+    ▼
+  Base Model
 ```
 
 ---
 
-## 🧠 Technical Approach
+## 🔄 Active Semi-Supervised Learning Pipeline
 
-### Phase 1: Base Model Training
-- Custom YOLO implementation from scratch
-- Initial training on generic supermarket dataset (Roboflow)
-- Baseline detection capabilities established
+This is the core contribution of the project. The goal is to build a large, high-quality labelled dataset while minimising human effort.
 
-### Phase 2: Custom Dataset Creation (Active Learning)
-1. **High-confidence predictions** (>0.9) → Auto-labeled for training
-2. **Low-confidence predictions** (<0.9) → Flagged for manual review
-3. **Latent space clustering**: Group similar unlabeled products
-4. **Manual labeling**: Only label cluster representatives (efficient!)
-5. **Propagate labels**: Similar products get same label automatically
+```
+┌─────────────────────────────────────────────────────────┐
+│                   ITERATIVE LOOP                        │
+│                                                         │
+│  ┌──────────┐    ┌──────────────┐    ┌───────────────┐  │
+│  │  Train   │───▶│  Inference   │───▶│  Sort by      │  │
+│  │  Model   │    │  on unlabels │    │  confidence   │  │
+│  └──────────┘    └──────────────┘    └───────────────┘  │
+│       ▲                                    │             │
+│       │               ┌────────────────────┤             │
+│       │               │                    │             │
+│       │        High confidence         Low confidence    │
+│       │               │                    │             │
+│       │               ▼                    ▼             │
+│       │        Pseudo-labels       Crop → Backbone       │
+│       │        (auto-add to        → Latent space        │
+│       │         train set)         → Deep Clustering     │
+│       │               │                    │             │
+│       │               │            Human labels          │
+│       │               │            centroid only         │
+│       │               │                    │             │
+│       └───────────────┴────────────────────┘             │
+└─────────────────────────────────────────────────────────┘
+```
 
-### Phase 3: Transfer Learning
-- Modified final layer for custom product categories
-- Fine-tuned on curated dataset
-- Iterative improvement through active learning loop
+**Semi-supervised branch:** Detections with confidence above a threshold are treated as ground truth and added directly to the training set as pseudo-labels.
 
-### Phase 4: Deployment (MLOps)
-- Dockerized application
-- Real-time webcam inference
-- Shopping cart logic with pricing dictionary
+**Active learning branch:** For uncertain detections, the crop of the detected object is passed through the backbone to extract its latent representation. Deep clustering groups these embeddings — products of the same class naturally cluster together, even when the classifier fails. An annotator is then asked to label only the images closest to each cluster centroid. These few labels are propagated to the rest of the cluster.
+
+Each iteration of the loop expands the dataset and improves the model, requiring progressively less human intervention.
 
 ---
 
-## 🚀 Quick Start
+## 📁 Project Structure
 
-### Prerequisites
-- Docker & Docker Compose
-- Webcam
+```
+project/
+├── README.md
+├── .gitignore
+├── requirements.txt
+│
+├── src/
+│   ├── config.py          # Hyperparameters, paths, anchor configurations
+│   ├── dataset.py         # Dataset loading, augmentation, CSV parsing
+│   ├── generate_csv.py    # Generates train/test CSV files from data folder
+│   ├── model.py           # YOLO architecture (backbone + neck + heads)
+│   ├── loss.py            # Custom loss: objectness + CIoU + classification
+│   ├── train.py           # Training loop with checkpoint saving
+│   ├── test_visual.py     # Visual evaluation with bounding box rendering
+│   ├── webcam.py          # Real-time inference via webcam
+│   └── utils.py           # NMS, mAP, IoU, plotting utilities
+│
+├── data/
+│   ├── train/             # Training images + YOLO-format .txt labels
+│   ├── test/              # Test images + labels
+│   ├── valid/             # Validation images + labels
+│   ├── train_csv.csv      # Manifest with image paths and annotations
+│   └── test_csv.csv
+│
+├── checkpoints/           # Saved model weights and training checkpoints
+└── saved_images/          # Output images from test_visual.py
+```
 
-### Run the Application
+---
+
+## ⚙️ Installation
+
 ```bash
 # Clone the repository
-git clone https://github.com/tu-usuario/auto-checkout-yolo.git
-cd auto-checkout-yolo
+git clone https://github.com/anderescaray/yolo-from-scratch.git
+cd your-repo-name
 
-# Build and run
-docker-compose up
+# Create a virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Access the application
-# Camera feed with detections: http://localhost:8000
+# Install dependencies
+pip install -r requirements.txt
 ```
+
+### Requirements
+
+- Python 3.10+
+- PyTorch 2.x
+- OpenCV
+- NumPy, Pandas, Matplotlib, tqdm
+
+---
+
+## 🚀 Usage
+
+### 1. Prepare the dataset
+
+Place images and YOLO-format `.txt` label files in `data/train/`, `data/test/`, and `data/valid/`. Then generate the CSV manifests:
+
+```bash
+python src/generate_csv.py
+```
+
+### 2. Configure the model
+
+Edit `src/config.py` to set the number of classes, anchor sizes, image resolution, and training hyperparameters.
+
+### 3. Train
+
+```bash
+python src/train.py
+```
+
+Checkpoints are saved automatically to `checkpoints/`.
+
+### 4. Evaluate visually
+
+```bash
+python src/test_visual.py
+```
+
+Output images with predicted bounding boxes are saved to `saved_images/`.
+
+### 5. Run real-time inference
+
+```bash
+python src/webcam.py
+```
+
+Point your webcam at a product and observe live detections.
 
 ---
 
 ## 📊 Results
 
-| Metric | Value |
-|--------|-------|
-| **mAP@0.5** | X.XX |
-| **Inference Time** | XX ms |
-| **Products Detected** | XX categories |
-| **Training Efficiency** | XX% reduction in labeling time (active learning) |
-| **Model Size** | XX MB |
+> *(Results will be updated upon project completion)*
 
-### Key Achievements
-✅ Custom YOLO trained from scratch  
-✅ Active learning reduced manual labeling by XX%  
-✅ Semi-supervised learning improved accuracy by XX%  
-✅ Real-time detection (>30 FPS) on CPU  
-✅ Production-ready Docker deployment  
+| Metric | Generic Dataset | Fine-tuned (manual labels only) | After SSL Loop |
+|--------|----------------|----------------------------------|----------------|
+| mAP@0.5 | — | — | — |
+| Precision | — | — | — |
+| Recall | — | — | — |
+| FPS (webcam) | — | — | — |
 
----
+**Dataset growth per iteration:**
 
-## 🛠️ Tech Stack
-
-**Deep Learning:**
-- PyTorch
-- Custom YOLO implementation
-- Transfer Learning
-
-**Data Pipeline:**
-- Active Learning framework
-- Semi-Supervised Learning
-- K-Means clustering for latent space analysis
-- Roboflow (initial dataset)
-
-**MLOps:**
-- Docker & Docker Compose
-- FastAPI (inference API)
-- OpenCV (webcam integration)
-- Model versioning
-
-**Tools:**
-- Python 3.9+
-- NumPy, Pandas
-- Matplotlib, Seaborn
+| Iteration | Manual labels | Pseudo-labels added | Total training samples |
+|-----------|--------------|---------------------|------------------------|
+| 0 | — | — | — |
+| 1 | — | — | — |
+| 2 | — | — | — |
 
 ---
 
-## 📁 Project Structure
-```
-auto-checkout-yolo/
-├── README.md
-├── docker/
-│   ├── Dockerfile
-│   └── docker-compose.yml
-├── src/
-│   ├── model/
-│   │   ├── yolo.py              # YOLO architecture
-│   │   └── train.py             # Training pipeline
-│   ├── active_learning/
-│   │   ├── clustering.py        # Latent space clustering
-│   │   └── labeling.py          # Active learning logic
-│   ├── inference/
-│   │   ├── detector.py          # Real-time detection
-│   │   └── api.py               # FastAPI endpoints
-│   └── utils/
-│       └── pricing.py           # Product pricing dictionary
-├── data/
-│   ├── initial_dataset/         # Roboflow generic dataset
-│   └── custom_dataset/          # Actively learned dataset
-├── models/
-│   └── checkpoints/             # Model versions
-├── notebooks/
-│   ├── 01_data_exploration.ipynb
-│   ├── 02_active_learning_analysis.ipynb
-│   └── 03_results_visualization.ipynb
-└── requirements.txt
-```
+## 🔮 Future Work
+
+### Pipeline improvements
+
+- **Per-class dynamic confidence threshold** — Replace the fixed pseudo-label threshold with a per-class adaptive one (computed as the mean confidence of each class plus a margin). This prevents dominant classes from flooding the training set while underrepresented ones stagnate, and avoids the need to manually tune a single global value.
+
+- **Consistency filtering for pseudo-labels** — Before accepting a pseudo-label, run inference on multiple augmented versions of the same image (flip, brightness, crop). Only add it to the training set if predictions are consistent across augmentations. This filters out cases where the model is accidentally confident and reduces noise in the training set.
+
+- **Margin sampling for active selection** — Instead of selecting uncertain samples purely by low confidence score, prioritise images where the gap between the top-1 and top-2 class probabilities (the margin) is smallest. These samples sit on the decision boundary and are the most informative for the annotator per label spent.
+
+- **Projection head with contrastive learning (SimCLR)** — The YOLO backbone produces embeddings optimised for detection, not clustering. Adding a small projection head (2–3 linear layers) trained with a contrastive objective — treating differently-augmented crops of the same object as positive pairs — would yield a much cleaner latent space, leading to more coherent clusters and more reliable label propagation without requiring any extra annotations.
+
+### System extensions
+
+- Build a full end-to-end checkout UI with price lookup and payment simulation.
+- Evaluate generalisation to other product domains beyond supermarket items.
+- Explore consistency regularisation (e.g. MeanTeacher) as an additional semi-supervised signal alongside pseudo-labelling.
 
 ---
 
-## 🔬 Active Learning Process
+## 👤 Author
 
-### 1. Initial Predictions
-```python
-# Model predicts on unlabeled data
-predictions = model.predict(unlabeled_data)
-
-# High confidence → Auto-label
-auto_labeled = predictions[predictions.confidence > 0.9]
-
-# Low confidence → Manual review needed
-review_needed = predictions[predictions.confidence < 0.9]
-```
-
-### 2. Latent Space Clustering
-```python
-# Extract features from CNN backbone
-features = model.extract_features(review_needed)
-
-# Cluster similar products
-clusters = kmeans.fit_predict(features)
-
-# Label one representative per cluster
-# Propagate label to all cluster members
-```
-
-### 3. Iterative Training
-- Retrain with newly labeled data
-- Repeat until desired accuracy
-- **Result**: XX% less manual labeling vs. full dataset annotation
-
----
-
-## 💡 Key Innovations
-
-1. **Custom YOLO from Scratch**: Deep understanding of architecture
-2. **Hybrid Learning**: Combines active + semi-supervised approaches
-3. **Efficient Labeling**: Clustering reduces annotation effort
-4. **Production-Ready**: Docker ensures portability
-
----
-
-## 🎥 Demo
-
-[Insertar GIF o video de la webcam detectando productos]
-```
-🛒 Shopping Cart:
-- Coca Cola x2 ......... 2.50€
-- Bread ................ 1.20€
-- Apple x3 ............. 3.60€
-----------------------------
-TOTAL .................. 7.30€
-```
-
----
-
-## 📈 Future Improvements
-
-- [ ] Add barcode detection as fallback
-- [ ] Multi-object tracking for moving products
-- [ ] Cloud deployment (AWS/GCP)
-- [ ] Mobile app integration
-- [ ] Expand to 100+ product categories
-
----
-
-## 🎓 Academic Context
-
-This project was developed as a **Bachelor's Thesis** in Data Science at Universidad Pública de Navarra (UPNA), 2025.
-
-**Advisor:** [Nombre del tutor]  
-**Grade:** [Cuando lo sepas]
+**Ander Escaray**  
+Bachelor's Degree in Data Science — UPNA, 2026  
+[linkedin.com/in/ander-escaray-354641389](https://www.linkedin.com) · [github.com/anderescaray](https://github.com)
 
 ---
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) for details
-
----
-
-## 🤝 Contact
-
-**[Tu Nombre]**  
-📧 [tu-email]  
-💼 [LinkedIn](tu-linkedin)  
-🐙 [GitHub](tu-github)
-
----
-
-## 🙏 Acknowledgments
-
-- Initial dataset: [Roboflow Supermarket Dataset](link)
-- YOLO paper: [Redmon et al., 2016](link)
-- Active Learning framework inspired by [paper/resource]
-
----
-
-**⭐ If you found this project interesting, please star the repository!**
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

@@ -56,50 +56,29 @@ class_labels = [
 NUM_CLASSES = len(class_labels)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Arquitectura del modelo YOLOv3
-# Tupla: (out_channels, kernel_size, stride) -> Convolución
-# Lista ["B", num_repeats]: Bloque Residual
-# "S": Scale Prediction (que será el output)
-# "U": Upsampling 
+
+# Las tuplas son bloques convolucionales
+# Y las listas son los bloques residuales CSP
 IMAGE_SIZE = 416
 S = [IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8]
 CONFIG = [
-    # si la entrada es 416 x 416
-    (32, 3, 1),                    # salida 416 x 416 x 32
-    (64, 3, 2),                    # stride 2 -> reducimos 208 x 208 x 64
-    ["B", 1],                      # resblcok
-    (128, 3, 2),                   # 104 x 104 x 128
-    ["B", 2],                      # x2 resblocks
-    (256, 3, 2),                   # 52 x 52 x 256
-    ["B", 8],                      # x8 resblocks      aquí guardaremos una copia de este mapa de características en route connections
-                                   #                para luego detectar objetos pequeños (aquí la red ya ve cosas pequeñas pero todavía con detalle de posición)
+    # --- BACKBONE CSPDarknet53 ---
+    (32, 3, 1),                    # Salida 416 x 416 x 32
+    (64, 3, 2),                    # Stride 2 -> 208 x 208 x 64
+    ["C", 1],                      # 1 repetición CSP
     
-    (512, 3, 2),                   # 26 x 26 x 512
-    ["B", 8],                      #  x8 resblocks  --> guardar en route connections para luego detectar objetos medianos
-    (1024, 3, 2),                  # 13 x 13 x 1024   aquí la red sabe mucho pero no ve la imagen, ve conceptos semánticos
-    ["B", 4],       # Backbone Darknet-53 termina aquí
-    # PROBAR A CAMBIAR ESTE ULTIMO BLOQUE RESIDUAL POR CPSDarknet53
+    (128, 3, 2),                   # Stride 2 -> 104 x 104 x 128
+    ["C", 2],                      # 2 repeticiones CSP
+    
+    (256, 3, 2),                   # Stride 2 -> 52 x 52 x 256
+    ["C", 8],                      # 8 repeticiones CSP <--- GUARDAR EN ROUTE CONNECTIONS (Pequeños)
+    
+    (512, 3, 2),                   # Stride 2 -> 26 x 26 x 512
+    ["C", 8],                      # 8 repeticiones CSP <--- GUARDAR EN ROUTE CONNECTIONS (Medianos)
+    
+    (1024, 3, 2),                  # Stride 2 -> 13 x 13 x 1024
+    ["C", 4],                      # 4 repeticiones CSP (Fin del Backbone y entra al SPP)
 
-    # Aquí ya hemos acabado con la primera fase de embudo donde hemos comprimido la imagen
-    # falta reconstruirla para saber dónde están los objetos que hemos detectado en la fase embudo 
-
-    (512, 1, 1),             # Reducimos canales a la mitad para ahorrar cómputo
-    (1024, 3, 1),              # Convolución final de procesamiento
-    "S",            # <--- OUTPUT 1 (Objetos Grandes - Predicción con Grid 13x13)
-
-    (256, 1, 1),            # Preparamos los canales antes de subir hacia el paso para detectar obj medianos
-    "U",                    # <--- Upsample 
-
-    (256, 1, 1),                # Procesamos la imagen fusionada (Upsample + Route 2)
-    (512, 3, 1),
-    "S",                            # <--- OUTPUT 2 (Objetos Medianos - Predicción con Grid 26x26)
-
-    (128, 1, 1),            # Preparamos los canales antes de subir a objs pequeños
-    "U",            # <--- Upsample (Agrandar)
-
-    (128, 1, 1),                # Procesamos la imagen fusionada (Upsample + Route 1)
-    (256, 3, 1),
-    "S",            # <--- OUTPUT 3 (Objetos Pequeños - Grid 52x52)
 ]
 
 #### DATA AUGMENTATION ####

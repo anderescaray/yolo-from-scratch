@@ -138,7 +138,7 @@ def main():
         if config.SAVE_MODEL:
             save_checkpoint(model, optimizer, filename=f"checkpoints/checkpoint.pth.tar")
 
-        # Evaluar precisión (mAP) cada 3 épocas (es lento por eso mejor no hacerlo siempre)
+        # Evaluar precisión (mAP) cada 3 epochs (es lento por eso mejor no hacerlo siempre)
         if epoch > 0 and epoch % 3 == 0:
             check_class_accuracy(model, test_loader, threshold=config.CONF_THRESHOLD)
             '''pred_boxes, true_boxes = get_evaluation_bboxes(
