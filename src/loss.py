@@ -12,7 +12,7 @@ Combina 4 pérdidas diferentes:
 Fórmula de la Loss total:
     Loss = λ_box * L_box + λ_obj * L_obj + λ_noobj * L_noobj + λ_class * L_class
 """
-import random
+
 import torch
 import torch.nn as nn
 from utils import intersection_over_union
@@ -27,9 +27,93 @@ class YoloLoss(nn.Module):
         
         # Constantes (Lambdas) para equilibrar la importancia de cada pérdida
         self.lambda_class = 1
-        self.lambda_noobj = 10  # Castigamos mucho los falsos positivos en el fondo
-        self.lambda_obj = 1
-        self.lambda_box = 10    # Las coordenadas deben ser muy precisas
+        self.lambda_noobj = 5  
+        self.lambda_obj = 2
+        self.lambda_box = 5   
+
+    def ciou_loss(self, pred_boxes, target_boxes):
+        """
+        CIoU Loss (Complete IoU) - Mejora de YOLOv4 sobre el MSE de YOLOv3
+        
+        En lugar de tratar x, y, w, h como 4 errores independientes (MSE),
+        CIoU mide directamente la calidad geométrica entre las dos cajas con 3 términos:
+        
+            1. IoU:      Cuánto se solapan las dos cajas (el objetivo principal)
+            2. Distance: Penaliza la distancia entre los centros de las dos cajas
+            3. Aspect:   Penaliza que las proporciones (w/h) sean distintas
+        
+        CIoU = IoU - (distancia²/diagonal²) - α * v
+            donde v mide la diferencia de aspecto y α lo pondera según el IoU actual
+
+        Cuanto más se parezcan las cajas, más se acerca CIoU a 1
+        La loss es: 1 - CIoU  (así 0 = cajas perfectas, 2 = cajas opuestas)
+
+        Args:
+            pred_boxes:   Tensor (N, 4) con [x, y, w, h] ya en escala de la grid
+            target_boxes: Tensor (N, 4) con [x, y, w, h] ya en escala de la grid
+        Returns:
+            loss: Escalar con la media del CIoU Loss
+        """
+        # --- Convertimos de (cx, cy, w, h) a (x1, y1, x2, y2) ---
+        # Esto nos facilita calcular áreas e intersecciones
+        pred_x1 = pred_boxes[..., 0] - pred_boxes[..., 2] / 2
+        pred_y1 = pred_boxes[..., 1] - pred_boxes[..., 3] / 2
+        pred_x2 = pred_boxes[..., 0] + pred_boxes[..., 2] / 2
+        pred_y2 = pred_boxes[..., 1] + pred_boxes[..., 3] / 2
+
+        tgt_x1 = target_boxes[..., 0] - target_boxes[..., 2] / 2
+        tgt_y1 = target_boxes[..., 1] - target_boxes[..., 3] / 2
+        tgt_x2 = target_boxes[..., 0] + target_boxes[..., 2] / 2
+        tgt_y2 = target_boxes[..., 1] + target_boxes[..., 3] / 2
+
+        # --- Término 1: IoU ---
+        # Área de intersección entre las dos cajas
+        inter_x1 = torch.max(pred_x1, tgt_x1)
+        inter_y1 = torch.max(pred_y1, tgt_y1)
+        inter_x2 = torch.min(pred_x2, tgt_x2)
+        inter_y2 = torch.min(pred_y2, tgt_y2)
+        # clamp(0) para que si no hay intersección el área sea 0 y no negativa
+        inter_area = (inter_x2 - inter_x1).clamp(0) * (inter_y2 - inter_y1).clamp(0)
+
+        pred_area = (pred_x2 - pred_x1) * (pred_y2 - pred_y1)
+        tgt_area  = (tgt_x2  - tgt_x1) * (tgt_y2  - tgt_y1)
+        union_area = pred_area + tgt_area - inter_area + 1e-7
+
+        iou = inter_area / union_area
+
+        # --- Término 2: Distancia entre centros / diagonal de la caja envolvente ---
+        # La caja envolvente (enclosing box) es la mínima caja que contiene a las dos
+        # Su diagonal al cuadrado es el denominador para normalizar la distancia
+        enclose_x1 = torch.min(pred_x1, tgt_x1)
+        enclose_y1 = torch.min(pred_y1, tgt_y1)
+        enclose_x2 = torch.max(pred_x2, tgt_x2)
+        enclose_y2 = torch.max(pred_y2, tgt_y2)
+        # c² = diagonal² de la caja envolvente
+        c2 = (enclose_x2 - enclose_x1) ** 2 + (enclose_y2 - enclose_y1) ** 2 + 1e-7
+
+        # d² = distancia² entre los centros de pred y target
+        center_dist2 = (
+            (pred_boxes[..., 0] - target_boxes[..., 0]) ** 2 +
+            (pred_boxes[..., 1] - target_boxes[..., 1]) ** 2
+        )
+
+        # --- Término 3: Consistencia de proporción (aspect ratio) ---
+        # v mide cuánto difieren los arcotangentes del aspecto w/h entre las dos cajas
+        # Si tienen la misma proporción, v = 0
+        v = (4 / (torch.pi ** 2)) * (
+            torch.atan(target_boxes[..., 2] / (target_boxes[..., 3] + 1e-7)) -
+            torch.atan(pred_boxes[..., 2]  / (pred_boxes[..., 3]  + 1e-7))
+        ) ** 2
+
+        # α pondera v según el IoU actual: si el IoU ya es alto, el aspecto importa más
+        with torch.no_grad():
+            alpha = v / (1 - iou + v + 1e-7)
+
+        # --- CIoU final ---
+        ciou = iou - (center_dist2 / c2) - alpha * v
+
+        # La loss es 1 - CIoU: cuanto mejor la caja, menor la pérdida
+        return (1 - ciou).mean()
 
     def forward(self, predictions, target, anchors):
         """
@@ -65,23 +149,22 @@ class YoloLoss(nn.Module):
     ### box loss ###
         # solo donde obj = True
         
-        # centro (x,y)
-        # La red los predice con cualquier nº y los ponemos para que estén entre 0 y 1
-        predictions[..., 1:3] = self.sigmoid(predictions[..., 1:3]) 
-        # Este ya está entre 0 y 1
-        target[..., 1:3] = target[..., 1:3] 
-        
-        # Dimensiones (w,h)
-        # La red predice el exponente para estirar el ancla: w = ancla * e^pred
-        # Para comparar lo mismo con lo mismo, pasamos el Target al formato de las preds
-        # t_w = log(w_real / w_ancla)
-        target[..., 3:5] = torch.log(
-            # usamos el 1e-16 para evitar ln(0)=-inf y que explote el grad
-            (1e-16 + target[..., 3:5] / anchors)
-        ) 
-        
-        # Calculamos el error total de coordenadas
-        box_loss = self.mse(predictions[..., 1:5][obj], target[..., 1:5][obj])
+        # Construimos las cajas predichas sin modificar el tensor original de predictions
+        # Trabajamos con variables locales para no corromper los datos entre escalas
+        pred_xy = self.sigmoid(predictions[..., 1:3])           # centro (x,y) entre 0 y 1
+        pred_wh = torch.exp(predictions[..., 3:5]) * anchors    # (w,h) en escala de la grid
+        pred_boxes = torch.cat([pred_xy, pred_wh], dim=-1)      # (x, y, w, h)
+
+        # Construimos las cajas del target en el mismo formato que pred_boxes
+        # Las (w,h) del target vienen normalizadas (0-1), las escalamos igual que pred
+        # IMPORTANTE: creamos target_wh como variable local, NO modificamos target[..., 3:5]
+        # Si modificáramos el tensor target directamente, la siguiente escala recibiría
+        # valores ya transformados (log transformados de valores ya transformados) → gradientes corruptos
+        target_wh = target[..., 3:5] * anchors                          # (w,h) del target en escala de la grid
+        target_boxes = torch.cat([target[..., 1:3], target_wh], dim=-1) # (x, y, w, h)
+
+        # Calculamos CIoU solo para las celdas donde hay objeto
+        box_loss = self.ciou_loss(pred_boxes[obj], target_boxes[obj])
 
     ### class loss ###
         # Predicción de qué objeto es 
