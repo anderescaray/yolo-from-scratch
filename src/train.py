@@ -1,5 +1,5 @@
 """
-YOLOv3 Training Pipeline
+YOLOv4 Training Pipeline
 ========================
 
 Este script junta el modelo, los datos, la loss y el optimizador para entrenar el modelo
@@ -13,7 +13,7 @@ Se calcula mAP (Mean Average Precision) periódicamente
 import config
 import torch
 import torch.optim as optim
-from model import YOLOv3
+from model import YOLOv4
 from tqdm import tqdm 
 from loss import YoloLoss
 import warnings
@@ -42,7 +42,7 @@ def train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors):
     
     Args:
         train_loader: el Dataloader que nos da los batchs
-        model: el modelo YOLOv3
+        model: el modelo YOLOv4
         optimizer: el AdamW que actualiza los pesos
         loss_fn: YoloLoss
         scaler: Herramienta para Mixed Precision (fp16)
@@ -93,7 +93,7 @@ def main():
     """Función principal de configuración y bucle de epochs"""
     
     # Inicializar modelo, optimizador y pérdida
-    model = YOLOv3(num_classes=config.NUM_CLASSES).to(config.DEVICE)
+    model = YOLOv4(num_classes=config.NUM_CLASSES).to(config.DEVICE)
     #optimizer = optim.Adam(
     #    model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY
     #)
@@ -139,9 +139,9 @@ def main():
             save_checkpoint(model, optimizer, filename=f"checkpoints/checkpoint.pth.tar")
 
         # Evaluar precisión (mAP) cada 3 epochs (es lento por eso mejor no hacerlo siempre)
-        if epoch > 0 and epoch % 3 == 0:
+        if epoch > 0 and epoch % 5 == 0:
             check_class_accuracy(model, test_loader, threshold=config.CONF_THRESHOLD)
-            '''pred_boxes, true_boxes = get_evaluation_bboxes(
+            pred_boxes, true_boxes = get_evaluation_bboxes(
                 test_loader,
                 model,
                 iou_threshold=config.NMS_IOU_THRESH,
@@ -155,7 +155,7 @@ def main():
                 box_format="midpoint",
                 num_classes=config.NUM_CLASSES,
             )
-            print(f"MAP: {map_val.item()}")'''
+            print(f"MAP: {map_val.item()}")
             
             model.train()
 

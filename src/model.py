@@ -279,7 +279,7 @@ if __name__ == "__main__":
     # Simulamos una imagen (Batch=2, Canales=3, Alto=416, Ancho=416)
     x = torch.randn((2, 3, IMAGE_SIZE, IMAGE_SIZE))
     
-    model = YOLOv3(num_classes=num_classes)
+    model = YOLOv4(num_classes=num_classes)
     out = model(x)
     
     print("¡MODELO CARGADO CORRECTAMENTE!")

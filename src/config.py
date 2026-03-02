@@ -1,9 +1,9 @@
 """
-YOLOv3 Configuración e Hiperparámetros
+YOLOv4 Configuración e Hiperparámetros
 ========================================
 
 Este módulo centraliza todas las constantes, hiperparámetros y configuraciones
-del modelo YOLOv3. Este archivo se usa para todo el pipeline de train y val
+del modelo YOLOv4. Este archivo se usa para todo el pipeline de train y val
 """
 import torch
 import cv2
@@ -28,7 +28,7 @@ LABEL_DIR = os.path.join(DATASET, "train")
 
 LEARNING_RATE = 1e-4 
 WEIGHT_DECAY = 1e-4   
-BATCH_SIZE = 16        
+BATCH_SIZE = 24        
 NUM_EPOCHS = 300      
 
 CONF_THRESHOLD = 0.5

@@ -1,5 +1,5 @@
 """
-Funciones de utilidad para YOLOv3
+Funciones de utilidad para YOLOv4
 ============================
 
 Colección de funciones auxiliares matemáticas y de procesamiento de tensores
