@@ -214,6 +214,17 @@ class PANet(nn.Module):
         # bu2: 13x13 x 256  -> objetos grandes
         return bu2, bu1, td3
 
+def initialize_weights(module):
+    for m in module.modules():
+        if isinstance(m, nn.Conv2d):
+            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu', a=0.1)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
+
+
 class YOLOv4(nn.Module):
     def __init__(self, in_channels=3, num_classes=80):
         super().__init__()
@@ -225,7 +236,7 @@ class YOLOv4(nn.Module):
         self.head_large  = ScalePrediction(256, num_classes)   # 13x13
         self.head_medium = ScalePrediction(256, num_classes)   # 26x26
         self.head_small  = ScalePrediction(128, num_classes)   # 52x52  
-        self._initialize_weights()
+        initialize_weights(self)
 
     def forward(self, x):
         route_small = None
@@ -249,16 +260,7 @@ class YOLOv4(nn.Module):
             self.head_small(out_small),    # 52x52
         ]
 
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu', a=0.1)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-                
+
     def _create_conv_layers(self):
         layers = nn.ModuleList()
         in_channels = self.in_channels

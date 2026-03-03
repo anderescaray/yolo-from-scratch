@@ -54,10 +54,11 @@ class YoloLoss(nn.Module):
         Returns:
             loss: Escalar con la media del CIoU Loss
         """
-        # --- Convertimos de (cx, cy, w, h) a (x1, y1, x2, y2) ---
+        # Convertimos de midpoints (tx, ty, w, h) a (x1, y1, x2, y2) corners
+        # (esquina superior izqda y inferior dcha)
         # Esto nos facilita calcular áreas e intersecciones
-        pred_x1 = pred_boxes[..., 0] - pred_boxes[..., 2] / 2
-        pred_y1 = pred_boxes[..., 1] - pred_boxes[..., 3] / 2
+        pred_x1 = pred_boxes[..., 0] - pred_boxes[..., 2] / 2 # tx - w/2
+        pred_y1 = pred_boxes[..., 1] - pred_boxes[..., 3] / 2 # ty - h/2
         pred_x2 = pred_boxes[..., 0] + pred_boxes[..., 2] / 2
         pred_y2 = pred_boxes[..., 1] + pred_boxes[..., 3] / 2
 
@@ -66,8 +67,7 @@ class YoloLoss(nn.Module):
         tgt_x2 = target_boxes[..., 0] + target_boxes[..., 2] / 2
         tgt_y2 = target_boxes[..., 1] + target_boxes[..., 3] / 2
 
-        # --- Término 1: IoU ---
-        # Área de intersección entre las dos cajas
+        # IoU
         inter_x1 = torch.max(pred_x1, tgt_x1)
         inter_y1 = torch.max(pred_y1, tgt_y1)
         inter_x2 = torch.min(pred_x2, tgt_x2)
@@ -81,36 +81,46 @@ class YoloLoss(nn.Module):
 
         iou = inter_area / union_area
 
-        # --- Término 2: Distancia entre centros / diagonal de la caja envolvente ---
-        # La caja envolvente (enclosing box) es la mínima caja que contiene a las dos
-        # Su diagonal al cuadrado es el denominador para normalizar la distancia
+        # Distancia entre centros / diagonal de la enclosing box
+        # La enclosing box es la mínima caja que contiene a las dos
         enclose_x1 = torch.min(pred_x1, tgt_x1)
         enclose_y1 = torch.min(pred_y1, tgt_y1)
         enclose_x2 = torch.max(pred_x2, tgt_x2)
         enclose_y2 = torch.max(pred_y2, tgt_y2)
-        # c² = diagonal² de la caja envolvente
+        # c^2 = diagonal^2 
         c2 = (enclose_x2 - enclose_x1) ** 2 + (enclose_y2 - enclose_y1) ** 2 + 1e-7
 
-        # d² = distancia² entre los centros de pred y target
+        # d^2 = distancia^2 entre los centros de pred y target
         center_dist2 = (
             (pred_boxes[..., 0] - target_boxes[..., 0]) ** 2 +
             (pred_boxes[..., 1] - target_boxes[..., 1]) ** 2
         )
 
-        # --- Término 3: Consistencia de proporción (aspect ratio) ---
+        # Consistencia de proporción
         # v mide cuánto difieren los arcotangentes del aspecto w/h entre las dos cajas
-        # Si tienen la misma proporción, v = 0
-        v = (4 / (torch.pi ** 2)) * (
-            torch.atan(target_boxes[..., 2] / (target_boxes[..., 3] + 1e-7)) -
-            torch.atan(pred_boxes[..., 2]  / (pred_boxes[..., 3]  + 1e-7))
-        ) ** 2
+        # Si tienen la misma proporción v = 0
+        v = ((4 / (torch.pi ** 2)) # constante de normalización del paper original para que v esté entre 0 y 1
+            * (
+                torch.atan(target_boxes[..., 2] / (target_boxes[..., 3] + 1e-7)) -
+                torch.atan(pred_boxes[..., 2]  / (pred_boxes[..., 3]  + 1e-7))
+            ) ** 2
+        )
 
-        # α pondera v según el IoU actual: si el IoU ya es alto, el aspecto importa más
-        with torch.no_grad():
+        # alpha pondera v según el IoU actual: si el IoU ya es alto, el aspecto importa más
+        with torch.no_grad(): # 
+            # es un coeficiente de ponderación, no una variable que queramos diferenciar. 
+            # Si lo incluyéramos en el grafo de gradientes crearíamos dependencias circulares en el cálculo
+            # Iou bajo -> alpha pequeño -> aspecto importa poco
+            # Iou alto -> alpha grande ->aspecto toma + importancia
             alpha = v / (1 - iou + v + 1e-7)
 
-        # --- CIoU final ---
+        # CIoU final
         ciou = iou - (center_dist2 / c2) - alpha * v
+
+        # Para ver si fallaba aqui
+        if torch.isnan(1 - ciou).any():
+            print("WARNING: NaN en ciou_loss")
+            return torch.tensor(0.0, requires_grad=True).to(pred_boxes.device)
 
         # La loss es 1 - CIoU: cuanto mejor la caja, menor la pérdida
         return (1 - ciou).mean()
@@ -122,6 +132,12 @@ class YoloLoss(nn.Module):
         target: Tensor (N, 3, S, S, 6) que viene del dataset
         anchors: Las 3 anclas de esta escala
         """
+        # Para ver si fallaba aqui
+        if torch.isnan(predictions).any() or torch.isinf(predictions).any():
+            print("WARNING: NaN/Inf en predictions")
+        if torch.isnan(target).any() or torch.isinf(target).any():
+            print("WARNING: NaN/Inf en target")
+        
         # Identificamos dónde hay objeto y dónde no en el target
         # miramos solo el índice 0 de la última dimensión, la confianza
         # creamos dos matrices con la misma forma (N,3,S,S)
@@ -150,18 +166,14 @@ class YoloLoss(nn.Module):
         # solo donde obj = True
         
         # Construimos las cajas predichas sin modificar el tensor original de predictions
-        # Trabajamos con variables locales para no corromper los datos entre escalas
+        # Trabajamos con variables locales para no corromper los datos entre diferentes escalas de la grid
         pred_xy = self.sigmoid(predictions[..., 1:3])           # centro (x,y) entre 0 y 1
         pred_wh = torch.exp(predictions[..., 3:5]) * anchors    # (w,h) en escala de la grid
         pred_boxes = torch.cat([pred_xy, pred_wh], dim=-1)      # (x, y, w, h)
 
-        # Construimos las cajas del target en el mismo formato que pred_boxes
-        # Las (w,h) del target vienen normalizadas (0-1), las escalamos igual que pred
-        # IMPORTANTE: creamos target_wh como variable local, NO modificamos target[..., 3:5]
-        # Si modificáramos el tensor target directamente, la siguiente escala recibiría
-        # valores ya transformados (log transformados de valores ya transformados) → gradientes corruptos
-        target_wh = target[..., 3:5] * anchors                          # (w,h) del target en escala de la grid
-        target_boxes = torch.cat([target[..., 1:3], target_wh], dim=-1) # (x, y, w, h)
+        # Construimos también las cajas del target en el mismo formato que pred_boxes
+        # El dataset ya guarda w,h en el formato de la escala de la grid 
+        target_boxes = target[..., 1:5] #(x, y, w, h)
 
         # Calculamos CIoU solo para las celdas donde hay objeto
         box_loss = self.ciou_loss(pred_boxes[obj], target_boxes[obj])
