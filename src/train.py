@@ -17,6 +17,7 @@ from model import YOLOv4
 from tqdm import tqdm 
 from loss import YoloLoss
 import warnings
+import wandb
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -88,9 +89,71 @@ def train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors):
         mean_loss = sum(losses) / len(losses)
         loop.set_postfix(loss=mean_loss)
 
+    # Devolvemos la pérdida media de la epoch
+    return mean_loss
+
+def val_fn(val_loader, model, loss_fn, scaled_anchors):
+    """
+    Calcula la loss sobre el conjunto de validación sin actualizar pesos.
+    Se ejecuta en modo eval() para desactivar dropout y BN en modo train.
+    Permite comparar train loss vs val loss para detectar overfitting.
+
+    Args:
+        val_loader:     Dataloader del conjunto de validación
+        model:          El modelo YOLOv4
+        loss_fn:        YoloLoss
+        scaled_anchors: Las anclas ajustadas al tamaño de la rejilla (13, 26, 52)
+
+    Returns:
+        mean_loss: loss media sobre todo el conjunto de validación
+    """
+    model.eval() # Desactivamos BatchNorm en modo train y dropout
+    losses = []
+
+    # torch.no_grad() para no construir el grafo de gradientes (más rápido y menos memoria)
+    with torch.no_grad():
+        loop = tqdm(val_loader, leave=True, desc="Validación")
+        for x, y in loop:
+            x = x.to(config.DEVICE)
+            y0, y1, y2 = (
+                y[0].to(config.DEVICE),
+                y[1].to(config.DEVICE),
+                y[2].to(config.DEVICE),
+            )
+
+            # Forward pass con Mixed Precision igual que en train (consistencia)
+            with torch.cuda.amp.autocast():
+                out = model(x)
+                loss = (
+                    loss_fn(out[0], y0, scaled_anchors[0]) # objetos grandes
+                    + loss_fn(out[1], y1, scaled_anchors[1]) # medianos
+                    + loss_fn(out[2], y2, scaled_anchors[2]) # pequeños
+                )
+
+            losses.append(loss.item())
+            mean_loss = sum(losses) / len(losses)
+            loop.set_postfix(val_loss=mean_loss)
+
+    model.train() # Volvemos a modo train para la siguiente epoch
+    return mean_loss
 
 def main():
     """Función principal de configuración y bucle de epochs"""
+    
+    # Inicializar wandb
+    # ver los resultados en https://wandb.ai
+    wandb.init(
+        project="yolov4-supermercado",  # nombre del proyecto en wandb
+        config={
+            "learning_rate": config.LEARNING_RATE,
+            "weight_decay": config.WEIGHT_DECAY,
+            "batch_size": config.BATCH_SIZE,
+            "epochs": config.NUM_EPOCHS,
+            "num_classes": config.NUM_CLASSES,
+            "image_size": config.IMAGE_SIZE,
+            "device": config.DEVICE,
+        }
+    )
     
     # Inicializar modelo, optimizador y pérdida
     model = YOLOv4(num_classes=config.NUM_CLASSES).to(config.DEVICE)
@@ -132,15 +195,23 @@ def main():
         print(f"Epoch: {epoch+1}/{config.NUM_EPOCHS}")
         
         # Entrenar una vuelta completa
-        train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors)
+        train_loss = train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors)
+        val_loss = val_fn(test_loader, model, loss_fn, scaled_anchors)
+
+        # Logear ambas losses juntas en wandb para poder compararlas en la misma gráfica
+        wandb.log({
+            "train/loss": train_loss,
+            "val/loss":   val_loss,
+            "epoch":      epoch + 1,
+        })
 
         # Guardar el modelo
         if config.SAVE_MODEL:
             save_checkpoint(model, optimizer, filename=f"checkpoints/checkpoint.pth.tar")
 
-        # Evaluar precisión (mAP) cada 3 epochs (es lento por eso mejor no hacerlo siempre)
+        # Evaluar precisión (mAP) cada 5 epochs (es lento por eso mejor no hacerlo siempre)
         if epoch > 0 and epoch % 5 == 0:
-            check_class_accuracy(model, test_loader, threshold=config.CONF_THRESHOLD)
+            class_acc, noobj_acc, obj_acc = check_class_accuracy(model, test_loader, threshold=config.CONF_THRESHOLD)
             pred_boxes, true_boxes = get_evaluation_bboxes(
                 test_loader,
                 model,
@@ -155,9 +226,18 @@ def main():
                 box_format="midpoint",
                 num_classes=config.NUM_CLASSES,
             )
-            print(f"MAP: {map_val.item()}")
+            print(f"mAP: {map_val.item()}")
             
+            wandb.log({
+                "eval/mAP":         map_val.item(),
+                "eval/class_acc":   class_acc,
+                "eval/obj_acc":     obj_acc,
+                "eval/noobj_acc":   noobj_acc,
+                "epoch":            epoch + 1,
+            })
+
             model.train()
+    wandb.finish()
 
 if __name__ == "__main__":
     print(f"Using device: {config.DEVICE}")

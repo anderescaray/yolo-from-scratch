@@ -112,37 +112,13 @@ class SPP(nn.Module):
         self.m1 = nn.MaxPool2d(kernel_size=5,  stride=1, padding=2)
         self.m2 = nn.MaxPool2d(kernel_size=9,  stride=1, padding=4)
         self.m3 = nn.MaxPool2d(kernel_size=13, stride=1, padding=6)
-        # out_channels * 4 porque concatenamos 4 tensores
+        # out_channels * 4 porque concatenamos los 4 tensores
         self.conv2 = CNNBlock(out_channels * 4, out_channels, kernel_size=1)
 
     def forward(self, x):
         x = self.conv1(x)
         out = torch.cat([x, self.m1(x), self.m2(x), self.m3(x)], dim=1)
         return self.conv2(out)
-
-### DETECTION HEAD ###
-class ScalePrediction(nn.Module):
-    def __init__(self, in_channels, num_classes):
-        super().__init__()
-    
-        self.pred = nn.Sequential(
-            # preprocesamiento final: duplica el tamaño (según paper YOLOv3)
-            CNNBlock(in_channels, 2 * in_channels, kernel_size=3, padding=1),
-            
-            # y la salida con bn_act=False
-            # out_channels = 3 * (num_classes + 5)
-            #   --> 3: Porque usamos 3 anclas por celda
-            #   --> 5: (x, y, w, h, probabilidad_objeto)
-            CNNBlock(2 * in_channels, (num_classes + 5) * 3, bn_act=False, kernel_size=1),
-        )
-        self.num_classes = num_classes
-
-    def forward(self, x):
-        return (
-            self.pred(x)
-            .reshape(x.shape[0], 3, self.num_classes + 5, x.shape[2], x.shape[3])
-            .permute(0, 1, 3, 4, 2)
-        )
 
 ### Path Aggregation Network ###
 class PANet(nn.Module):
@@ -214,6 +190,30 @@ class PANet(nn.Module):
         # bu2: 13x13 x 256  -> objetos grandes
         return bu2, bu1, td3
 
+### DETECTION HEAD ###
+class ScalePrediction(nn.Module):
+    def __init__(self, in_channels, num_classes):
+        super().__init__()
+    
+        self.pred = nn.Sequential(
+            # preprocesamiento final: duplica el tamaño (según paper YOLOv3)
+            CNNBlock(in_channels, 2 * in_channels, kernel_size=3, padding=1),
+            
+            # y la salida con bn_act=False
+            # out_channels = 3 * (num_classes + 5)
+            #   --> 3: Porque usamos 3 anclas por celda
+            #   --> 5: (x, y, w, h, probabilidad_objeto)
+            CNNBlock(2 * in_channels, (num_classes + 5) * 3, bn_act=False, kernel_size=1),
+        )
+        self.num_classes = num_classes
+
+    def forward(self, x):
+        return (
+            self.pred(x)
+            .reshape(x.shape[0], 3, self.num_classes + 5, x.shape[2], x.shape[3])
+            .permute(0, 1, 3, 4, 2)
+        )
+
 def initialize_weights(module):
     for m in module.modules():
         if isinstance(m, nn.Conv2d):
@@ -232,7 +232,7 @@ class YOLOv4(nn.Module):
         self.in_channels = in_channels 
         self.backbone = self._create_conv_layers()
         self.spp = SPP(in_channels=1024, out_channels=512)
-        self.neck = PANet()          # lo definimos a continuación
+        self.neck = PANet()         
         self.head_large  = ScalePrediction(256, num_classes)   # 13x13
         self.head_medium = ScalePrediction(256, num_classes)   # 26x26
         self.head_small  = ScalePrediction(128, num_classes)   # 52x52  

@@ -1,5 +1,5 @@
 """
-YOLOv3 Loss Function
+YOLOv4 Loss Function
 ====================
 
 Este módulo calcula el error entre la predicción del modelo y el ground truth
@@ -8,6 +8,7 @@ Combina 4 pérdidas diferentes:
     2. Object Loss: Error al detectar si hay objeto o no (confianza) con IoU-aware
     3. No Object Loss: Penalización por detectar objetos donde no hay nada (Fondo)
     4. Class Loss: Error en la clase del objeto
+            --> Usa label smoothing=0.1 para evitar sobreconfianza (YOLOv4 BoF)
 
 Fórmula de la Loss total:
     Loss = λ_box * L_box + λ_obj * L_obj + λ_noobj * L_noobj + λ_class * L_class
@@ -23,7 +24,7 @@ class YoloLoss(nn.Module):
         # Para coordenadas (x,y,w,h) y Clases usamos Error Cuadrático o Entropía Cruzada
         self.mse = nn.MSELoss() 
         self.bce = nn.BCEWithLogitsLoss() # Binary Cross Entropy (incluye Sigmoide)
-        self.entropy = nn.CrossEntropyLoss()
+        self.entropy = nn.CrossEntropyLoss(label_smoothing=0.1)
         
         # Constantes (Lambdas) para equilibrar la importancia de cada pérdida
         self.lambda_class = 1
@@ -101,8 +102,8 @@ class YoloLoss(nn.Module):
         # Si tienen la misma proporción v = 0
         v = ((4 / (torch.pi ** 2)) # constante de normalización del paper original para que v esté entre 0 y 1
             * (
-                torch.atan(target_boxes[..., 2] / (target_boxes[..., 3] + 1e-7)) -
-                torch.atan(pred_boxes[..., 2]  / (pred_boxes[..., 3]  + 1e-7))
+            torch.atan(target_boxes[..., 2] / (target_boxes[..., 3].clamp(min=1e-3))) -
+                torch.atan(pred_boxes[..., 2]  / (pred_boxes[..., 3].clamp(min=1e-3)))
             ) ** 2
         )
 
@@ -117,10 +118,6 @@ class YoloLoss(nn.Module):
         # CIoU final
         ciou = iou - (center_dist2 / c2) - alpha * v
 
-        # Para ver si fallaba aqui
-        if torch.isnan(1 - ciou).any():
-            print("WARNING: NaN en ciou_loss")
-            return torch.tensor(0.0, requires_grad=True).to(pred_boxes.device)
 
         # La loss es 1 - CIoU: cuanto mejor la caja, menor la pérdida
         return (1 - ciou).mean()
@@ -132,12 +129,7 @@ class YoloLoss(nn.Module):
         target: Tensor (N, 3, S, S, 6) que viene del dataset
         anchors: Las 3 anclas de esta escala
         """
-        # Para ver si fallaba aqui
-        if torch.isnan(predictions).any() or torch.isinf(predictions).any():
-            print("WARNING: NaN/Inf en predictions")
-        if torch.isnan(target).any() or torch.isinf(target).any():
-            print("WARNING: NaN/Inf en target")
-        
+
         # Identificamos dónde hay objeto y dónde no en el target
         # miramos solo el índice 0 de la última dimensión, la confianza
         # creamos dos matrices con la misma forma (N,3,S,S)
