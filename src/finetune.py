@@ -38,7 +38,7 @@ FINETUNE_LR = 1e-5
 
 
 def freeze_all_except_heads(model):
-    """Congela backbone, SPP y neck. Solo las cabezas quedan entrenables."""
+    """Congela backbone, SPP y neck. Solo deja las cabezas para que se puedan entrenar"""
     for param in model.backbone.parameters():
         param.requires_grad = False
     for param in model.spp.parameters():
@@ -48,7 +48,7 @@ def freeze_all_except_heads(model):
 
 
 def unfreeze_neck_and_spp(model):
-    """Descongela el neck y el SPP para la Fase 2. El backbone sigue congelado."""
+    """Descongela el neck y el SPP para la Fase 2 dejando el backbone congelado"""
     for param in model.spp.parameters():
         param.requires_grad = True
     for param in model.neck.parameters():
@@ -97,13 +97,11 @@ def main():
 
     # -----------------------------------------------------------------------
     ### FASE 1: Solo cabezas (backbone + SPP + neck congelados)
-    # El gradiente de las cabezas nuevas (pesos aleatorios) podría distorsionar
-    # los pesos preentrenados del neck y el SPP si los dejásemos libres desde el inicio
     # -----------------------------------------------------------------------
     print(f"\n--- FASE 1: Entrenando solo las cabezas ({FASE1_EPOCHS} epochs) ---")
     freeze_all_except_heads(model)
 
-    # El optimizador solo ve los parámetros entrenables en este momento (las cabezas)
+    # El optimizador solo ve los parámetros de las cabezas
     optimizer = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=FINETUNE_LR,

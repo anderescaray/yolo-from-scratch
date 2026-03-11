@@ -125,7 +125,7 @@ class PANet(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # --- TOP-DOWN (de 13x13 hacia 52x52) ---
+        # --- TOP-DOWN (FPN)(de 13x13 hacia 52x52) ---
 
         # Procesa la salida del SPP (13x13 x 512) y la prepara para subir
         self.td_conv1 = nn.Sequential(

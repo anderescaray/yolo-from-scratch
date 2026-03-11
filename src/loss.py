@@ -36,7 +36,7 @@ class YoloLoss(nn.Module):
         """
         CIoU Loss (Complete IoU) - Mejora de YOLOv4 sobre el MSE de YOLOv3
         
-        En lugar de tratar x, y, w, h como 4 errores independientes (MSE),
+        En lugar de tratar x, y, w, h como 4 errores independientes (como con MSE),
         CIoU mide directamente la calidad geométrica entre las dos cajas con 3 términos:
         
             1. IoU:      Cuánto se solapan las dos cajas (el objetivo principal)
@@ -171,7 +171,6 @@ class YoloLoss(nn.Module):
         box_loss = self.ciou_loss(pred_boxes[obj], target_boxes[obj])
 
     ### class loss ###
-        # Predicción de qué objeto es 
         class_loss = self.entropy(
             (predictions[..., 5:][obj]), (target[..., 5][obj].long())
         )
