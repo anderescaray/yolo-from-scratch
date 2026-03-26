@@ -457,25 +457,48 @@ def load_checkpoint(checkpoint_file, model, optimizer, lr):
         param_group["lr"] = lr
 
 
-def get_loaders(train_csv_path, test_csv_path):
+def get_loaders(
+    train_csv_path,
+    val_csv_path,
+    train_img_dir=None,
+    train_label_dir=None,
+    val_img_dir=None,
+    val_label_dir=None,
+):
+    """
+    Crea y devuelve los DataLoaders de entrenamiento, validación y train-eval.
+
+    Los directorios de imagen y label tienen como valor por defecto los del
+    config activo (DATASET_TYPE), pero se pueden sobreescribir explícitamente
+    para usar rutas distintas (p.ej. en finetune.py).
+    """
     from dataset import YOLODataset
 
     IMAGE_SIZE = config.IMAGE_SIZE
+
+    # Valores por defecto: rutas del config activo
+    t_img   = train_img_dir   or config.IMG_DIR
+    t_lbl   = train_label_dir or config.LABEL_DIR
+    v_img   = val_img_dir     or config.VAL_IMG_DIR
+    v_lbl   = val_label_dir   or config.VAL_LABEL_DIR
+
     train_dataset = YOLODataset(
         train_csv_path,
         transform=config.train_transforms,
         S=[IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8],
-        img_dir=config.IMG_DIR,
-        label_dir=config.LABEL_DIR,
+        img_dir=t_img,
+        label_dir=t_lbl,
         anchors=config.ANCHORS,
+        C=config.NUM_CLASSES,
     )
-    test_dataset = YOLODataset(
-        test_csv_path,
+    val_dataset = YOLODataset(
+        val_csv_path,
         transform=config.test_transforms,
         S=[IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8],
-        img_dir="data/valid",
-        label_dir="data/valid",
+        img_dir=v_img,
+        label_dir=v_lbl,
         anchors=config.ANCHORS,
+        C=config.NUM_CLASSES,
     )
     train_loader = DataLoader(
         dataset=train_dataset,
@@ -485,8 +508,8 @@ def get_loaders(train_csv_path, test_csv_path):
         shuffle=True,
         drop_last=False,
     )
-    test_loader = DataLoader(
-        dataset=test_dataset,
+    val_loader = DataLoader(
+        dataset=val_dataset,
         batch_size=config.BATCH_SIZE,
         num_workers=config.NUM_WORKERS,
         pin_memory=config.PIN_MEMORY,
@@ -494,13 +517,15 @@ def get_loaders(train_csv_path, test_csv_path):
         drop_last=False,
     )
 
+    # Para evaluar mAP sobre train sin augmentation
     train_eval_dataset = YOLODataset(
         train_csv_path,
         transform=config.test_transforms,
         S=[IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8],
-        img_dir=config.IMG_DIR,
-        label_dir=config.LABEL_DIR,
+        img_dir=t_img,
+        label_dir=t_lbl,
         anchors=config.ANCHORS,
+        C=config.NUM_CLASSES,
     )
     train_eval_loader = DataLoader(
         dataset=train_eval_dataset,
@@ -511,7 +536,7 @@ def get_loaders(train_csv_path, test_csv_path):
         drop_last=False,
     )
 
-    return train_loader, test_loader, train_eval_loader
+    return train_loader, val_loader, train_eval_loader
 
 def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
     model.eval()

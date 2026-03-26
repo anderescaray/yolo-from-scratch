@@ -149,14 +149,14 @@ def main():
             "weight_decay": config.WEIGHT_DECAY,
             "batch_size": config.BATCH_SIZE,
             "epochs": config.NUM_EPOCHS,
-            "num_classes": config.NUM_CLASSES,
+            "num_classes": config.GENERIC_NUM_CLASSES,
             "image_size": config.IMAGE_SIZE,
             "device": config.DEVICE,
         }
     )
     
     # Inicializar modelo, optimizador y pérdida
-    model = YOLOv4(num_classes=config.NUM_CLASSES).to(config.DEVICE)
+    model = YOLOv4(num_classes=config.GENERIC_NUM_CLASSES).to(config.DEVICE)
     #optimizer = optim.Adam(
     #    model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY
     #)
@@ -169,10 +169,10 @@ def main():
     loss_fn = YoloLoss()
     scaler = torch.cuda.amp.GradScaler() # Para fp16
 
-    # Cargar datos
-    train_loader, test_loader, train_eval_loader = get_loaders(
-        train_csv_path=config.DATASET + "/train.csv", 
-        test_csv_path=config.DATASET + "/test.csv"
+    # Cargar datos del dataset genérico (DATASET_TYPE = "generic" en config.py)
+    train_loader, val_loader, train_eval_loader = get_loaders(
+        train_csv_path=config.TRAIN_CSV,
+        val_csv_path=config.VAL_CSV,
     )
 
     # Cargar checkpoint (Por si se quiere seguir entrenando uno guardado)
@@ -196,7 +196,7 @@ def main():
         
         # Entrenar una vuelta completa
         train_loss = train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors)
-        val_loss = val_fn(test_loader, model, loss_fn, scaled_anchors)
+        val_loss = val_fn(val_loader, model, loss_fn, scaled_anchors)
 
         # Logear ambas losses juntas en wandb para poder compararlas en la misma gráfica
         wandb.log({
@@ -211,9 +211,9 @@ def main():
 
         # Evaluar precisión (mAP) cada 5 epochs (es lento por eso mejor no hacerlo siempre)
         if epoch > 0 and epoch % 5 == 0:
-            class_acc, noobj_acc, obj_acc = check_class_accuracy(model, test_loader, threshold=config.CONF_THRESHOLD)
+            class_acc, noobj_acc, obj_acc = check_class_accuracy(model, val_loader, threshold=config.CONF_THRESHOLD)
             pred_boxes, true_boxes = get_evaluation_bboxes(
-                test_loader,
+                val_loader,
                 model,
                 iou_threshold=config.NMS_IOU_THRESH,
                 anchors=config.ANCHORS,
@@ -224,7 +224,7 @@ def main():
                 true_boxes,
                 iou_threshold=config.MAP_IOU_THRESH,
                 box_format="midpoint",
-                num_classes=config.NUM_CLASSES,
+                num_classes=config.GENERIC_NUM_CLASSES,
             )
             print(f"mAP: {map_val.item()}")
             
