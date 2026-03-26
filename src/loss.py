@@ -28,8 +28,8 @@ class YoloLoss(nn.Module):
         
         # Constantes (Lambdas) para equilibrar la importancia de cada pérdida
         self.lambda_class = 1
-        self.lambda_noobj = 5  
-        self.lambda_obj = 2
+        self.lambda_noobj = 3  
+        self.lambda_obj = 10
         self.lambda_box = 5   
 
     def ciou_loss(self, pred_boxes, target_boxes):
@@ -78,7 +78,7 @@ class YoloLoss(nn.Module):
 
         pred_area = (pred_x2 - pred_x1) * (pred_y2 - pred_y1)
         tgt_area  = (tgt_x2  - tgt_x1) * (tgt_y2  - tgt_y1)
-        union_area = pred_area + tgt_area - inter_area + 1e-7
+        union_area = pred_area + tgt_area - inter_area + 1e-6
 
         iou = inter_area / union_area
 
@@ -89,7 +89,7 @@ class YoloLoss(nn.Module):
         enclose_x2 = torch.max(pred_x2, tgt_x2)
         enclose_y2 = torch.max(pred_y2, tgt_y2)
         # c^2 = diagonal^2 
-        c2 = (enclose_x2 - enclose_x1) ** 2 + (enclose_y2 - enclose_y1) ** 2 + 1e-7
+        c2 = (enclose_x2 - enclose_x1) ** 2 + (enclose_y2 - enclose_y1) ** 2 + 1e-6
 
         # d^2 = distancia^2 entre los centros de pred y target
         center_dist2 = (
@@ -113,7 +113,7 @@ class YoloLoss(nn.Module):
             # Si lo incluyéramos en el grafo de gradientes crearíamos dependencias circulares en el cálculo
             # Iou bajo -> alpha pequeño -> aspecto importa poco
             # Iou alto -> alpha grande ->aspecto toma + importancia
-            alpha = v / (1 - iou + v + 1e-7)
+            alpha = v / (1 - iou + v + 1e-6)
 
         # CIoU final
         ciou = iou - (center_dist2 / c2) - alpha * v
@@ -148,7 +148,7 @@ class YoloLoss(nn.Module):
         
         # Pasamos las preds de la red (de las bboxes) a formato normal
         # y cogem solo las dimensiones y las concatenamos
-        box_preds = torch.cat([self.sigmoid(predictions[..., 1:3]), torch.exp(predictions[..., 3:5]) * anchors], dim=-1)
+        box_preds = torch.cat([self.sigmoid(predictions[..., 1:3]), torch.exp(predictions[..., 3:5]).clamp(max=10) * anchors], dim=-1)
         ious = intersection_over_union(box_preds[obj], target[..., 1:5][obj]).detach()
         
         # Para que la confianza predicha sea como el IoU
@@ -160,7 +160,7 @@ class YoloLoss(nn.Module):
         # Construimos las cajas predichas sin modificar el tensor original de predictions
         # Trabajamos con variables locales para no corromper los datos entre diferentes escalas de la grid
         pred_xy = self.sigmoid(predictions[..., 1:3])           # centro (x,y) entre 0 y 1
-        pred_wh = torch.exp(predictions[..., 3:5]) * anchors    # (w,h) en escala de la grid
+        pred_wh = torch.exp(predictions[..., 3:5]).clamp(max=10) * anchors    # (w,h) en escala de la grid
         pred_boxes = torch.cat([pred_xy, pred_wh], dim=-1)      # (x, y, w, h)
 
         # Construimos también las cajas del target en el mismo formato que pred_boxes
