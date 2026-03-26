@@ -482,6 +482,11 @@ def get_loaders(
     v_img   = val_img_dir     or config.VAL_IMG_DIR
     v_lbl   = val_label_dir   or config.VAL_LABEL_DIR
 
+    if config.DATASET_TYPE == "generic":
+        num_classes = config.GENERIC_NUM_CLASSES
+    else:
+        num_classes = config.SPECIFIC_NUM_CLASSES
+
     train_dataset = YOLODataset(
         train_csv_path,
         transform=config.train_transforms,
@@ -489,7 +494,7 @@ def get_loaders(
         img_dir=t_img,
         label_dir=t_lbl,
         anchors=config.ANCHORS,
-        C=config.NUM_CLASSES,
+        C=num_classes,
     )
     val_dataset = YOLODataset(
         val_csv_path,
@@ -498,7 +503,7 @@ def get_loaders(
         img_dir=v_img,
         label_dir=v_lbl,
         anchors=config.ANCHORS,
-        C=config.NUM_CLASSES,
+        C=num_classes,
     )
     train_loader = DataLoader(
         dataset=train_dataset,
@@ -525,7 +530,7 @@ def get_loaders(
         img_dir=t_img,
         label_dir=t_lbl,
         anchors=config.ANCHORS,
-        C=config.NUM_CLASSES,
+        C=num_classes,
     )
     train_eval_loader = DataLoader(
         dataset=train_eval_dataset,
