@@ -1,17 +1,37 @@
-torch
-torchvision
-torchaudio
-numpy
+# Dependencies for YOLO from scratch project
+#
+# IMPORTANT - Installation with CUDA (GPU):
+# ─────────────────────────────────────────
+# DO NOT install with "pip install -r requirements.txt" directly,
+# because it would install PyTorch without GPU support.
+#
+# 1. First install PyTorch with CUDA (choose according to your CUDA version):
+#
+#    CUDA 12.1:
+#    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#
+#    CUDA 11.8:
+#    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+#
+#    (Check CUDA version with: nvidia-smi)
+#
+# 2. Then install the rest:
+#    pip install -r requirements.txt
+#
+# ─────────────────────────────────────────
+
+# Computer Vision and Augmentation
 opencv-python
-pillow
-matplotlib
-pandas
-tqdm
 albumentations
-scikit-learn
-tensorboard
-ultralytics
-transformers
-datasets
-seaborn
-scipy
+
+# Data and utilities
+numpy
+pandas
+pillow
+tqdm
+
+# Visualization
+matplotlib
+
+# Tracking experiments
+wandb
