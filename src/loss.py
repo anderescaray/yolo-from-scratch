@@ -28,9 +28,9 @@ class YoloLoss(nn.Module):
         
         # Constantes (Lambdas) para equilibrar la importancia de cada pérdida
         self.lambda_class = 1
-        self.lambda_noobj = 1  
-        self.lambda_obj = 2
-        self.lambda_box = 2   
+        self.lambda_noobj = 0.5  
+        self.lambda_obj = 1
+        self.lambda_box = 5   
 
     def ciou_loss(self, pred_boxes, target_boxes):
         """

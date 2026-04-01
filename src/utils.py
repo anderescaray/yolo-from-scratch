@@ -399,14 +399,14 @@ def check_class_accuracy(model, loader, threshold):
             noobj = y[i][..., 0] == 0  # in paper this is Iobj_i
 
             correct_class += torch.sum(
-                torch.argmax(out[i][..., 5:][obj], dim=-1) == y[i][..., 5][obj]
+                torch.argmax(out[i][..., 5:][obj], dim=-1) == y[i][..., 5][obj].long()
             )
             tot_class_preds += torch.sum(obj)
 
             obj_preds = torch.sigmoid(out[i][..., 0]) > threshold
-            correct_obj += torch.sum(obj_preds[obj] == y[i][..., 0][obj])
+            correct_obj += torch.sum(obj_preds[obj])
             tot_obj += torch.sum(obj)
-            correct_noobj += torch.sum(obj_preds[noobj] == y[i][..., 0][noobj])
+            correct_noobj += torch.sum(~obj_preds[noobj])
             tot_noobj += torch.sum(noobj)
 
     print(f"Class accuracy is: {(correct_class/(tot_class_preds+1e-16))*100:2f}%")
