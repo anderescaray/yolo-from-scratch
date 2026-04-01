@@ -37,7 +37,9 @@ class YOLODataset(Dataset):
         C=20, # n de clases
         transform=None,
     ):
-        self.annotations = pd.read_csv(csv_file) # Leemos el CSV con nombres de fotos
+        df = pd.read_csv(csv_file) # Leemos el CSV
+        self.img_files = df.iloc[:, 0].tolist()
+        self.label_files = df.iloc[:, 1].tolist()
         self.img_dir = img_dir
         self.label_dir = label_dir
         self.image_size = image_size
@@ -52,7 +54,7 @@ class YOLODataset(Dataset):
         self.ignore_iou_thresh = 0.5
 
     def __len__(self):
-        return len(self.annotations)
+        return len(self.img_files)
 
     def __getitem__(self, index):
         """
@@ -66,12 +68,20 @@ class YOLODataset(Dataset):
             tuple(targets): Tupla de 3 tensores con las etiquetas mapeadas a la rejilla.
         """
         # 1. CARGAR IMAGEN Y ETIQUETA
-        label_path = os.path.join(self.label_dir, self.annotations.iloc[index, 1])
-        # Formato del .txt: [class, x, y, w, h]
-        # np.roll -> Movemos la clase al final para que quede [x, y, w, h, class]
-        bboxes = np.roll(np.loadtxt(fname=label_path, delimiter=" ", ndmin=2), 4, axis=1).tolist()
+        label_path = os.path.join(self.label_dir, self.label_files[index])
         
-        img_path = os.path.join(self.img_dir, self.annotations.iloc[index, 0])
+        # Lectura rápida nativa sin np.loadtxt ni pandas
+        bboxes = []
+        with open(label_path, 'r') as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) == 5:
+                    # [class, x, y, w, h] -> [x, y, w, h, class]
+                    class_label = int(float(parts[0]))
+                    box = [float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4]), class_label]
+                    bboxes.append(box)
+        
+        img_path = os.path.join(self.img_dir, self.img_files[index])
         image = np.array(Image.open(img_path).convert("RGB"))
 
         # 2. DATA AUGMENTATION

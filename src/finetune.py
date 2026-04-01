@@ -55,7 +55,7 @@ torch.backends.cudnn.benchmark = True
 FASE1_EPOCHS   = 15       # Solo cabezas
 FASE2_EPOCHS   = 100      # Neck + SPP + cabezas
 LR_FASE1       = 1e-4     # Más alto: cabezas parten de pesos aleatorios
-LR_FASE2       = 1e-5     # Más bajo: afinar sin destruir lo aprendido
+LR_FASE2       = 5e-6     # Más bajo: afinar sin destruir lo aprendido
 MAP_EVAL_FREQ  = 5        # Evaluar mAP cada N epochs en fase 2
 PATIENCE       = 15       # Early stopping: epochs sin mejora en val_loss
 FASE3_EPOCHS   = 30       # Descongelación total
@@ -157,7 +157,8 @@ def main():
     # 4. COMPONENTES COMUNES
     # ----------------------------------------------------------
     loss_fn = YoloLoss()
-    scaler  = torch.cuda.amp.GradScaler()
+
+    scaler = torch.cuda.amp.GradScaler()
 
     scaled_anchors = (
         torch.tensor(config.ANCHORS)
@@ -314,7 +315,7 @@ def main():
         lr=LR_FASE3,
         weight_decay=config.WEIGHT_DECAY,
     )
-    # Usamos un scheduler muy suave
+    
     scheduler_f3 = CosineAnnealingLR(optimizer_f3, T_max=FASE3_EPOCHS, eta_min=1e-7)
 
     epochs_no_improve = 0 # Reiniciamos la paciencia

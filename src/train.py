@@ -46,7 +46,7 @@ def train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors):
         model: el modelo YOLOv4
         optimizer: el AdamW que actualiza los pesos
         loss_fn: YoloLoss
-        scaler: Herramienta para Mixed Precision (fp16)
+        scaler: GradScaler para FP16
         scaled_anchors: las anclas ajustadas al tamaño de la rejilla (13, 26, 52)
     """
     # Barra de progreso para ver cuánto falta
@@ -54,26 +54,26 @@ def train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors):
     losses = []
 
     for batch_idx, (x, y) in enumerate(loop):
-        x = x.to(config.DEVICE)
+        x = x.to(config.DEVICE, non_blocking=True)
         y0, y1, y2 = (
-            y[0].to(config.DEVICE),
-            y[1].to(config.DEVICE),
-            y[2].to(config.DEVICE),
+            y[0].to(config.DEVICE, non_blocking=True),
+            y[1].to(config.DEVICE, non_blocking=True),
+            y[2].to(config.DEVICE, non_blocking=True),
         )
-
-        # Forward pass con Mixed Precision
-        # 'autocast' permite a la GPU usar float16 donde sea seguro (más rápido)
         with torch.cuda.amp.autocast():
-            # out[0]=13x13, out[1]=26x26, out[2]=52x52
             out = model(x)
             
-            # Cálculo de loss
-            # Sumando el error de las 3 escalas
-            loss = (
-                loss_fn(out[0], y0, scaled_anchors[0]) # error de objetos grandes
-                + loss_fn(out[1], y1, scaled_anchors[1]) # medianos
-                + loss_fn(out[2], y2, scaled_anchors[2]) # pequeños
-            )
+        # FUERA del autocast, para convertir a las predicciones a Float32
+        # para evitar que w/h^2 sea w/0.0 y de inf
+        out0 = out[0].float()
+        out1 = out[1].float()
+        out2 = out[2].float()
+        
+        loss = (
+            loss_fn(out0, y0, scaled_anchors[0])
+            + loss_fn(out1, y1, scaled_anchors[1])
+            + loss_fn(out2, y2, scaled_anchors[2])
+        )
 
         # Backpropagation
         losses.append(loss.item())
@@ -81,8 +81,14 @@ def train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors):
         
         # Se escala la pérdida (necesario para float16 para evitar underflow)
         scaler.scale(loss).backward() 
+
+        scaler.unscale_(optimizer)
+        
+        # Gradient clipping: si algún gradiente es > 1.0, lo frena
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         scaler.step(optimizer) # Se actualizan los pesos
-        scaler.update() # Se actualiza el factor de escala
+        scaler.update()
 
         # Actualización de la barra de progreso
         # Mostramos el promedio de error actual
@@ -114,14 +120,12 @@ def val_fn(val_loader, model, loss_fn, scaled_anchors):
     with torch.no_grad():
         loop = tqdm(val_loader, leave=True, desc="Validación")
         for x, y in loop:
-            x = x.to(config.DEVICE)
+            x = x.to(config.DEVICE, non_blocking=True)
             y0, y1, y2 = (
-                y[0].to(config.DEVICE),
-                y[1].to(config.DEVICE),
-                y[2].to(config.DEVICE),
+                y[0].to(config.DEVICE, non_blocking=True),
+                y[1].to(config.DEVICE, non_blocking=True),
+                y[2].to(config.DEVICE, non_blocking=True),
             )
-
-            # Forward pass con Mixed Precision igual que en train (consistencia)
             with torch.cuda.amp.autocast():
                 out = model(x)
                 loss = (
@@ -129,7 +133,6 @@ def val_fn(val_loader, model, loss_fn, scaled_anchors):
                     + loss_fn(out[1], y1, scaled_anchors[1]) # medianos
                     + loss_fn(out[2], y2, scaled_anchors[2]) # pequeños
                 )
-
             losses.append(loss.item())
             mean_loss = sum(losses) / len(losses)
             loop.set_postfix(val_loss=mean_loss)
