@@ -28,9 +28,9 @@ class YoloLoss(nn.Module):
         
         # Constantes (Lambdas) para equilibrar la importancia de cada pérdida
         self.lambda_class = 1
-        self.lambda_noobj = 3  
-        self.lambda_obj = 10
-        self.lambda_box = 5   
+        self.lambda_noobj = 1  
+        self.lambda_obj = 2
+        self.lambda_box = 2   
 
     def ciou_loss(self, pred_boxes, target_boxes):
         """
@@ -80,7 +80,7 @@ class YoloLoss(nn.Module):
         tgt_area  = (tgt_x2  - tgt_x1) * (tgt_y2  - tgt_y1)
         union_area = pred_area + tgt_area - inter_area + 1e-6
 
-        iou = inter_area / union_area
+        iou = inter_area / union_area.clamp(min=1e-4)
 
         # Distancia entre centros / diagonal de la enclosing box
         # La enclosing box es la mínima caja que contiene a las dos
@@ -100,12 +100,10 @@ class YoloLoss(nn.Module):
         # Consistencia de proporción
         # v mide cuánto difieren los arcotangentes del aspecto w/h entre las dos cajas
         # Si tienen la misma proporción v = 0
-        v = ((4 / (torch.pi ** 2)) # constante de normalización del paper original para que v esté entre 0 y 1
-            * (
-            torch.atan(target_boxes[..., 2] / (target_boxes[..., 3].clamp(min=1e-3))) -
-                torch.atan(pred_boxes[..., 2]  / (pred_boxes[..., 3].clamp(min=1e-3)))
-            ) ** 2
-        )
+        v = ((4 / (torch.pi ** 2)) * (
+            torch.atan(target_boxes[..., 2] / (target_boxes[..., 3].clamp(min=1e-6))) -
+            torch.atan(pred_boxes[..., 2] / (pred_boxes[..., 3].clamp(min=1e-6)))
+        ) ** 2)
 
         # alpha pondera v según el IoU actual: si el IoU ya es alto, el aspecto importa más
         with torch.no_grad(): # 
@@ -113,10 +111,11 @@ class YoloLoss(nn.Module):
             # Si lo incluyéramos en el grafo de gradientes crearíamos dependencias circulares en el cálculo
             # Iou bajo -> alpha pequeño -> aspecto importa poco
             # Iou alto -> alpha grande ->aspecto toma + importancia
-            alpha = v / (1 - iou + v + 1e-6)
+            denominator_alpha = (1 - iou + v).clamp(min=1e-4)
+            alpha = v / denominator_alpha
 
         # CIoU final
-        ciou = iou - (center_dist2 / c2) - alpha * v
+        ciou = iou - (center_dist2 / c2.clamp(min=1e-4)) - alpha * v
 
 
         # La loss es 1 - CIoU: cuanto mejor la caja, menor la pérdida
@@ -148,7 +147,7 @@ class YoloLoss(nn.Module):
         
         # Pasamos las preds de la red (de las bboxes) a formato normal
         # y cogem solo las dimensiones y las concatenamos
-        box_preds = torch.cat([self.sigmoid(predictions[..., 1:3]), torch.exp(predictions[..., 3:5]).clamp(max=10) * anchors], dim=-1)
+        box_preds = torch.cat([self.sigmoid(predictions[..., 1:3]), torch.exp(predictions[..., 3:5].clamp(min=-10, max=10)) * anchors], dim=-1)
         ious = intersection_over_union(box_preds[obj], target[..., 1:5][obj]).detach()
         
         # Para que la confianza predicha sea como el IoU
@@ -160,7 +159,7 @@ class YoloLoss(nn.Module):
         # Construimos las cajas predichas sin modificar el tensor original de predictions
         # Trabajamos con variables locales para no corromper los datos entre diferentes escalas de la grid
         pred_xy = self.sigmoid(predictions[..., 1:3])           # centro (x,y) entre 0 y 1
-        pred_wh = torch.exp(predictions[..., 3:5]).clamp(max=10) * anchors    # (w,h) en escala de la grid
+        pred_wh = torch.exp(predictions[..., 3:5].clamp(min=-10, max=10)) * anchors    # (w,h) en escala de la grid
         pred_boxes = torch.cat([pred_xy, pred_wh], dim=-1)      # (x, y, w, h)
 
         # Construimos también las cajas del target en el mismo formato que pred_boxes
@@ -176,12 +175,22 @@ class YoloLoss(nn.Module):
         )
 
     ### loss total ###
-        return (
+        total_loss = (
             self.lambda_box * box_loss
             + self.lambda_obj * object_loss
             + self.lambda_noobj * no_object_loss
             + self.lambda_class * class_loss
         )
+
+        if torch.isnan(total_loss):
+            print("\n¡ALERTA NAN DETECTADA!")
+            print(f"Box Loss: {box_loss.item()}")
+            print(f"Obj Loss: {object_loss.item()}")
+            print(f"NoObj Loss: {no_object_loss.item()}")
+            print(f"Class Loss: {class_loss.item()}")
+
+    
+        return total_loss
 
     def sigmoid(self, x):
         return torch.sigmoid(x)

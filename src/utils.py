@@ -512,6 +512,7 @@ def get_loaders(
         pin_memory=config.PIN_MEMORY,
         shuffle=True,
         drop_last=False,
+        persistent_workers=True if config.NUM_WORKERS > 0 else False,
     )
     val_loader = DataLoader(
         dataset=val_dataset,

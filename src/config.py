@@ -25,7 +25,7 @@ DATASET_TYPE = "specific"
 # ============================================================
 # RUTAS BASE
 # ============================================================
-NUM_WORKERS = 0
+NUM_WORKERS = 4
 PIN_MEMORY = True
 LOAD_MODEL = False
 SAVE_MODEL = True

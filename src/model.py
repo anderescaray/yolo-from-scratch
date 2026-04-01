@@ -217,12 +217,16 @@ class ScalePrediction(nn.Module):
 def initialize_weights(module):
     for m in module.modules():
         if isinstance(m, nn.Conv2d):
-            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu', a=0.1)
+            # Para la capa fija de inferencia final
             if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.BatchNorm2d):
-            nn.init.constant_(m.weight, 1)
-            nn.init.constant_(m.bias, 0)
+                # Inicializar pesos muy pequeños para no mutar las strong features
+                nn.init.normal_(m.weight, mean=0, std=0.01) 
+                
+                # Inicializamos todo el bias con un prior conservador 
+                # (-4.6 => Sigmoide da ~1% de confianza inicial)
+                nn.init.constant_(m.bias, -4.6) 
+            else:
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
 
 
 class YOLOv4(nn.Module):
