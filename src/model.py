@@ -222,9 +222,14 @@ def initialize_weights(module):
                 # Inicializar pesos muy pequeños para no mutar las strong features
                 nn.init.normal_(m.weight, mean=0, std=0.01) 
                 
-                # Inicializamos todo el bias con un prior conservador 
-                # (-4.6 => Sigmoide da ~1% de confianza inicial)
-                nn.init.constant_(m.bias, -4.6) 
+                # Inicializamos todo el bias a 0
+                nn.init.constant_(m.bias, 0) 
+                
+                # SOLO el objectness (canal 0 de cada una de las 3 anclas) empieza en -4.6
+                num_channels = m.bias.shape[0]
+                channels_per_anchor = num_channels // 3
+                for a in range(3):
+                    m.bias.data[a * channels_per_anchor] = -4.6
             else:
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
 

@@ -19,6 +19,9 @@ from loss import YoloLoss
 import warnings
 import wandb
 import os
+import cv2
+
+cv2.setNumThreads(0)
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 from utils import (
