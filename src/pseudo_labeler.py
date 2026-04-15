@@ -7,10 +7,7 @@ Genera pseudo-labels offline para imágenes sin etiquetar usando:
   2. Weighted Boxes Fusion (WBF): fusiona las cajas coincidentes
   3. Filtrado por umbral tau para quedarse solo con las de alta confianza
 
-Uso:
-    python src/pseudo_labeler.py --weights checkpoints/finetune_best.pth.tar --tau 0.85
-
-Salida:
+Output:
     - Archivos .txt en formato YOLO en data/yolo_dataset/train/pseudo_labelled/
     - CSV pseudo_train.csv con pares (imagen, label)
 """
@@ -22,6 +19,8 @@ import torch
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 import config
 from model import YOLOv4
@@ -96,7 +95,7 @@ def weighted_boxes_fusion(boxes_list, iou_threshold=0.55):
                     # Recalcular la caja fusionada como media ponderada por confianza
                     cluster = clusters[i]
                     total_weight = sum(b[1] for b in cluster)
-                    avg_score = total_weight / len(cluster)
+                    avg_score = total_weight / len(cluster) # confianza media (si alucina en todas, pueden pasar pseudo-labels malas)
                     avg_x = sum(b[1] * b[2] for b in cluster) / total_weight
                     avg_y = sum(b[1] * b[3] for b in cluster) / total_weight
                     avg_w = sum(b[1] * b[4] for b in cluster) / total_weight
@@ -143,12 +142,24 @@ def flip_boxes_horizontal(boxes):
     for box in boxes:
         cls, score, x, y, w, h = box
         flipped.append([cls, score, 1.0 - x, y, w, h])
-    return flipped
+    return flipped    
 
+def get_eval_transform(new_size):
+    """Crea una transformación dinámica al tamaño requerido para las distintas escalas."""
+    return A.Compose([
+        A.Resize(height=new_size, width=new_size),
+        A.Normalize(mean=[0, 0, 0], std=[1, 1, 1], max_pixel_value=255),
+        ToTensorV2(),
+    ])
 
 def predict_with_tta(model, image_np, anchors, device, conf_threshold=0.3):
     """
-    Genera predicciones TTA (original + H-flip) y las devuelve como dos listas.
+    Genera predicciones con Multi-Scale Test-Time Augmentation (4 pasadas).
+    Evalúa la imagen en diferentes condiciones para maximizar la robustez:
+      1. Original (1.0x)
+      2. Horizontal Flip (Espejo)
+      3. Scale Up (~1.25x)
+      4. Scale Down (~0.75x)
 
     Args:
         model: modelo YOLOv4 en eval()
@@ -158,26 +169,40 @@ def predict_with_tta(model, image_np, anchors, device, conf_threshold=0.3):
         conf_threshold: umbral mínimo para pre-filtrar cajas basura
 
     Returns:
-        (boxes_original, boxes_flipped_corrected)
+        Lista con 4 sub-listas de predicciones: 
+        [boxes_original, boxes_flipped_corrected, boxes_scale_up, boxes_scale_down]
     """
-    transform = config.test_transforms
+    base_size = config.IMAGE_SIZE
+    # YOLO requiere que las dimensiones de entrada sean múltiplos de 32
+    size_up = int(base_size * 1.25) // 32 * 32
+    size_down = int(base_size * 0.75) // 32 * 32
 
     # --- Pasada 1: Original ---
-    aug_orig = transform(image=image_np, bboxes=[])
-    img_tensor_orig = aug_orig["image"]
-    boxes_orig = decode_predictions(model, img_tensor_orig, anchors, device)
+    t_orig = get_eval_transform(base_size)
+    img_orig = t_orig(image=image_np)["image"]
+    boxes_orig = decode_predictions(model, img_orig, anchors, device)
     boxes_orig = [b for b in boxes_orig if b[1] > conf_threshold]
 
     # --- Pasada 2: Horizontal Flip ---
     image_flipped = np.fliplr(image_np).copy()
-    aug_flip = transform(image=image_flipped, bboxes=[])
-    img_tensor_flip = aug_flip["image"]
-    boxes_flip = decode_predictions(model, img_tensor_flip, anchors, device)
+    img_flip = t_orig(image=image_flipped)["image"]
+    boxes_flip = decode_predictions(model, img_flip, anchors, device)
     boxes_flip = [b for b in boxes_flip if b[1] > conf_threshold]
-    # Deshacer el flip en las coordenadas
-    boxes_flip = flip_boxes_horizontal(boxes_flip)
+    boxes_flip = flip_boxes_horizontal(boxes_flip) # Deshacer el flip
 
-    return boxes_orig, boxes_flip
+    # --- Pasada 3: Scale Up ---
+    t_up = get_eval_transform(size_up)
+    img_up = t_up(image=image_np)["image"]
+    boxes_up = decode_predictions(model, img_up, anchors, device)
+    boxes_up = [b for b in boxes_up if b[1] > conf_threshold]
+
+    # --- Pasada 4: Scale Down ---
+    t_down = get_eval_transform(size_down)
+    img_down = t_down(image=image_np)["image"]
+    boxes_down = decode_predictions(model, img_down, anchors, device)
+    boxes_down = [b for b in boxes_down if b[1] > conf_threshold]
+
+    return [boxes_orig, boxes_flip, boxes_up, boxes_down]
 
 
 # ============================================================
@@ -233,14 +258,14 @@ def main():
         img_path = os.path.join(unlabelled_dir, img_name)
         image_np = np.array(Image.open(img_path).convert("RGB"))
 
-        # TTA: obtener cajas de ambas pasadas
-        boxes_orig, boxes_flip = predict_with_tta(
+        # TTA: obtener cajas de las 4 pasadas (Multi-Scale + H-Flip)
+        tta_boxes_list = predict_with_tta(
             model, image_np, config.ANCHORS, config.DEVICE
         )
 
-        # WBF: fusionar las dos listas
+        # WBF: fusionar la lista de listas
         fused = weighted_boxes_fusion(
-            [boxes_orig, boxes_flip],
+            tta_boxes_list,
             iou_threshold=args.iou_wbf,
         )
 
