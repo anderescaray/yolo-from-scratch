@@ -1,5 +1,5 @@
-# 🛒 Vision-Based Self-Checkout System
-### Object Detection with Active Semi-Supervised Learning
+# 🛒 Custom YOLO & Active Semi-Supervised Learning: Vision-Based Self-Checkout
+### Building an Object Detection pipeline from scratch with Active Semi-Supervised Learning to minimize manual annotation
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python" />
@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" />
 </p>
 
-> **Bachelor's Final Thesis (TFG)** — A vision-only self-checkout system that identifies supermarket products in real time, built on a custom YOLO implementation and an Active Semi-Supervised Learning pipeline that drastically reduces the need for manual labelling.
+> **Bachelor's Final Thesis (TFG)** — A custom PyTorch implementation of YOLO combined with an Active Semi-Supervised Learning pipeline. This project solves the "data bottleneck" in computer vision by drastically reducing the manual labeling required to deploy a real-time, vision-only self-checkout system.
 
 ---
 
