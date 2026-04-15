@@ -544,7 +544,7 @@ def get_loaders(
 
     return train_loader, val_loader, train_eval_loader
 
-def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
+def plot_couple_examples(model, loader, thresh, iou_thresh, anchors, labels):
     model.eval()
     x, y = next(iter(loader))
     x = x.to("cuda" if torch.cuda.is_available() else "cpu")
@@ -575,12 +575,12 @@ def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
         image = x[i].permute(1, 2, 0).detach().cpu().numpy()
         image = np.ascontiguousarray(image) 
         
-        save_prediction_image(image, nms_boxes, index=i)
+        save_prediction_image(image, nms_boxes, index=i, labels=labels)
 
-def save_prediction_image(image, boxes, index):
+def save_prediction_image(image, boxes, index, labels):
     """Guarda la imagen con las cajas dibujadas en lugar de mostrarla"""
     cmap = plt.get_cmap("tab20b")
-    class_labels = config.class_labels
+    class_labels = labels
     colors = [cmap(i) for i in np.linspace(0, 1, len(class_labels))]
     
     height, width, _ = image.shape
