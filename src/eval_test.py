@@ -16,6 +16,11 @@ from utils import (
 )
 
 def evaluate_model(weights_path):
+    # Resolver el path relativo desde la raíz del proyecto
+    import os
+    if not os.path.isabs(weights_path):
+        weights_path = os.path.join(config.BASE_DIR, weights_path)
+
     print(f"\n{'='*60}")
     print(f"  EVALUACIÓN EN CONJUNTO DE TEST")
     print(f"  Modelo: {weights_path}")
@@ -25,7 +30,7 @@ def evaluate_model(weights_path):
 
     # Cargar los pesos del checkpoint
     print("Cargando pesos...")
-    checkpoint = torch.load(weights_path, map_location=config.DEVICE)
+    checkpoint = torch.load(weights_path, map_location=config.DEVICE, weights_only=False)
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
     print(" ✅ Pesos cargados correctamente.\n")
@@ -73,6 +78,7 @@ def evaluate_model(weights_path):
 if __name__ == "__main__":
 
 # example: python src/eval_test.py --weights checkpoints/finetune_best.pth.tar
+# checkpoints/ssl_best.pth.tar
 
     parser = argparse.ArgumentParser(description="Evaluar modelo YOLO en conjunto de Test")
     parser.add_argument(

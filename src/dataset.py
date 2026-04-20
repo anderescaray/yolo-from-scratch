@@ -85,6 +85,22 @@ class YOLODataset(Dataset):
         image = np.array(Image.open(img_path).convert("RGB"))
 
         # 2. DATA AUGMENTATION
+        # Clampear las cajas al rango [0,1] mediante conversión a esquinas.
+        # Un clamp por coordenada NO es suficiente: si y_center=1e-7 y h=0.56,
+        # albumentations calcula y_min = y_center - h/2 < 0 y falla.
+        clamped_bboxes = []
+        for box in bboxes:
+            x, y, w, h, cls = box[0], box[1], box[2], box[3], box[4]
+            x1 = max(0.0, x - w / 2)
+            y1 = max(0.0, y - h / 2)
+            x2 = min(1.0, x + w / 2)
+            y2 = min(1.0, y + h / 2)
+            if x2 > x1 and y2 > y1:  # descartar cajas degeneradas
+                clamped_bboxes.append(
+                    [(x1 + x2) / 2, (y1 + y2) / 2, x2 - x1, y2 - y1, cls]
+                )
+        bboxes = clamped_bboxes
+
         if self.transform:
             augmentations = self.transform(image=image, bboxes=bboxes)
             image = augmentations["image"]

@@ -221,13 +221,18 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"  PSEUDO-LABEL GENERATOR (TTA + WBF)")
-    print(f"  Modelo: {args.weights}")
+    # Resolver el path del checkpoint relativo a la raíz del proyecto
+    weights_path = args.weights
+    if not os.path.isabs(weights_path):
+        weights_path = os.path.join(config.BASE_DIR, weights_path)
+
+    print(f"  Modelo: {weights_path}")
     print(f"  Tau: {args.tau}  |  IoU WBF: {args.iou_wbf}")
     print(f"{'='*60}\n")
 
     # ------- Cargar modelo -------
     model = YOLOv4(num_classes=config.SPECIFIC_NUM_CLASSES).to(config.DEVICE)
-    checkpoint = torch.load(args.weights, map_location=config.DEVICE)
+    checkpoint = torch.load(weights_path, map_location=config.DEVICE, weights_only=False)
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
     print("  ✅ Modelo cargado.\n")
@@ -284,12 +289,24 @@ def main():
             for box in confident_boxes:
                 cls_id = int(box[0])
                 x, y, w, h = box[2], box[3], box[4], box[5]
-                # Clampear coordenadas al rango [0, 1]
-                x = max(0.0, min(1.0, x))
-                y = max(0.0, min(1.0, y))
-                w = max(0.001, min(1.0, w))
-                h = max(0.001, min(1.0, h))
-                f.write(f"{cls_id} {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n")
+
+                # Convertir a esquinas, clampear a [0,1] y reconvertir a centro
+                # Esto es lo único que garantiza que y_center + h/2 <= 1.0
+                x1 = max(0.0, x - w / 2)
+                y1 = max(0.0, y - h / 2)
+                x2 = min(1.0, x + w / 2)
+                y2 = min(1.0, y + h / 2)
+
+                # Descartar cajas degeneradas tras el clamp
+                if x2 <= x1 or y2 <= y1:
+                    continue
+
+                xc = (x1 + x2) / 2
+                yc = (y1 + y2) / 2
+                wc = x2 - x1
+                hc = y2 - y1
+
+                f.write(f"{cls_id} {xc:.6f} {yc:.6f} {wc:.6f} {hc:.6f}\n")
 
         total_labels += len(confident_boxes)
         csv_rows.append([img_name, label_name])
