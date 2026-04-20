@@ -56,7 +56,7 @@ The result is a system capable of learning to recognise a new set of products wi
 
 The detector is a hybrid of YOLOv3 and YOLOv4, implemented entirely from scratch in PyTorch. It uses:
 
-- A **Darknet-inspired backbone** for feature extraction, pre-trained on a generic dataset.
+- A **CPS Darknet backbone** for feature extraction, pre-trained on a generic dataset.
 - **Multi-scale prediction heads** for detecting objects at different sizes.
 - A custom **loss function** combining objectness, bounding box regression (CIoU), and classification losses.
 
@@ -64,7 +64,7 @@ The detector is a hybrid of YOLOv3 and YOLOv4, implemented entirely from scratch
 
 ```
 Stage 1 ─ Generic Dataset
-    │  Train full model (backbone + heads)
+    │  Train full model: backbone + heads (with [RPC Dataset, Kaggle](https://www.kaggle.com/datasets/diyer22/retail-product-checkout-dataset))
     ▼
 Stage 2 ─ Specific Products
     │  Freeze backbone weights
