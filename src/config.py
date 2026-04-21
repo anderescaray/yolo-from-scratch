@@ -70,7 +70,7 @@ SSL_BEST                = os.path.join(BASE_DIR, "checkpoints", "ssl_best.pth.ta
 # ============================================================
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY  = 1e-4
-BATCH_SIZE    = 16       # Reducido para imágenes grandes del dataset específico
+BATCH_SIZE    = 24       
 NUM_EPOCHS    = 300
 
 CONF_THRESHOLD  = 0.5
@@ -85,24 +85,6 @@ SSL_LOSS_WEIGHT = 1.0    # Peso relativo de la loss pseudo vs labelled
 # CLASES
 # ============================================================
 
-# Dataset genérico (preentrenamiento)
-generic_class_labels = [
-    "-", "Apple", "Apple -Green-", "Apple -Red-", "Artichoke", "Asparagus",
-    "Avocado", "Banana", "Beans", "Bell Pepper", "Blackberries", "Blueberries",
-    "Book", "Boxed Food", "Bread", "Broccoli", "Brussel Sprouts", "Butter",
-    "Cabbage", "Canned Fish", "Canned Food", "Cantaloupe", "Carrots", "Cauliflower",
-    "Cereal", "Cerealbox", "Cheese", "Clementine", "Coffee", "Condiment",
-    "Corn", "Creamer", "Cucumber", "Detergent", "Drinks", "Egg",
-    "Eggplant", "Eggs", "Fish", "Galia", "Garlic", "Grains",
-    "Grapes", "Honeydew", "Jar", "Juice", "Kiwi", "Lemon",
-    "Lettuce", "Meat", "Meat -Red-", "Milk", "Mushroom", "Mushrooms",
-    "Nectarine", "Noodles", "Oats", "Orange", "Oranges", "Peach",
-    "Peanut Butter", "Pear", "Pickled Food -Jar-", "Pineapple", "Plum", "Pomegranate",
-    "Popcorn", "Potatoes -Package-", "Raspberries", "Rice", "Salad", "Sauce",
-    "Seasoning -Thin Package-", "Snack", "Soda", "Spinach", "Squash", "Strawberries",
-    "Strawberry", "Tofu", "Tomatoes", "Water", "Watermelon", "Yogurt", "Zucchini"
-]
-
 # Dataset específico (fine-tuning) — 20 clases del supermercado
 specific_class_labels = [
     "coca_cola_bottle", "coca_cola_can", "orange_fanta_bottle", "heineken_can",
@@ -112,7 +94,7 @@ specific_class_labels = [
     "fried_tomato", "york_ham", "turkey_ham"
 ]
 
-GENERIC_NUM_CLASSES = len(generic_class_labels)
+GENERIC_NUM_CLASSES = 1 # Class-Agnostic 
 SPECIFIC_NUM_CLASSES = len(specific_class_labels)
 
 
