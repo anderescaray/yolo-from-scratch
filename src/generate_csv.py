@@ -72,8 +72,8 @@ def generate_generic() -> None:
         output_csv=os.path.join(dataset_dir, "train.csv"),
     )
     scan_folder(
-        folder_path=os.path.join(dataset_dir, "valid"),
-        output_csv=os.path.join(dataset_dir, "test.csv"),
+        folder_path=os.path.join(dataset_dir, "val"),
+        output_csv=os.path.join(dataset_dir, "val.csv"),
     )
 
 

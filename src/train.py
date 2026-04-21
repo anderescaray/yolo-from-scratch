@@ -196,6 +196,11 @@ def main():
         * torch.tensor(config.S).unsqueeze(1).unsqueeze(1).repeat(1, 3, 2)
     ).to(config.DEVICE)
 
+
+    patience = 15
+    patience_counter = 0
+    best_val_loss = float('inf')
+
     # Bucle de entrenamiento
     for epoch in range(config.NUM_EPOCHS):
         print(f"Epoch: {epoch+1}/{config.NUM_EPOCHS}")
@@ -211,9 +216,17 @@ def main():
             "epoch":      epoch + 1,
         })
 
-        # Guardar el modelo
-        if config.SAVE_MODEL:
-            save_checkpoint(model, optimizer, filename=f"checkpoints/checkpoint.pth.tar")
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+            # Guardar el modelo
+            if config.SAVE_MODEL:
+                save_checkpoint(model, optimizer, filename=f"checkpoints/best_checkpoint.pth.tar")
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f"Early stopping en la epoch {epoch+1}")
+                break
 
         # Evaluar precisión (mAP) cada 5 epochs (es lento por eso mejor no hacerlo siempre)
         if epoch > 0 and epoch % 5 == 0:

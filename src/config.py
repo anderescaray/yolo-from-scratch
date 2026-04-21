@@ -20,7 +20,7 @@ import os
 # CONTROL CENTRAL DE DATASET
 # ============================================================
 # Opciones: "generic" | "specific"
-DATASET_TYPE = "specific"
+DATASET_TYPE = "generic"
 
 # ============================================================
 # RUTAS BASE
@@ -36,10 +36,10 @@ if DATASET_TYPE == "generic":
     DATASET_DIR      = os.path.join(BASE_DIR, "data", "generic_dataset")
     IMG_DIR          = os.path.join(DATASET_DIR, "train")
     LABEL_DIR        = os.path.join(DATASET_DIR, "train")
-    VAL_IMG_DIR      = os.path.join(DATASET_DIR, "valid")
-    VAL_LABEL_DIR    = os.path.join(DATASET_DIR, "valid")
+    VAL_IMG_DIR      = os.path.join(DATASET_DIR, "val")
+    VAL_LABEL_DIR    = os.path.join(DATASET_DIR, "val")
     TRAIN_CSV        = os.path.join(DATASET_DIR, "train.csv")
-    VAL_CSV          = os.path.join(DATASET_DIR, "test.csv")
+    VAL_CSV          = os.path.join(DATASET_DIR, "val.csv")
 else:  # "specific"
     DATASET_DIR      = os.path.join(BASE_DIR, "data", "yolo_dataset")
     IMG_DIR          = os.path.join(DATASET_DIR, "train", "labelled")
@@ -48,6 +48,13 @@ else:  # "specific"
     VAL_LABEL_DIR    = os.path.join(DATASET_DIR, "val")
     TRAIN_CSV        = os.path.join(DATASET_DIR, "train.csv")
     VAL_CSV          = os.path.join(DATASET_DIR, "val.csv")
+    TEST_CSV         = os.path.join(DATASET_DIR, "test.csv")
+    TEST_IMG_DIR     = os.path.join(DATASET_DIR, "test")
+    TEST_LABEL_DIR   = os.path.join(DATASET_DIR, "test")
+    # SSL
+    UNLABELLED_IMG_DIR  = os.path.join(DATASET_DIR, "train", "unlabelled")
+    PSEUDO_LABEL_DIR    = os.path.join(DATASET_DIR, "train", "pseudo_labelled")
+    PSEUDO_CSV          = os.path.join(DATASET_DIR, "pseudo_train.csv")
 
 # Checkpoint del preentrenamiento genérico (input del finetune)
 CHECKPOINT_FILE         = os.path.join(BASE_DIR, "checkpoints", "checkpoint.pth.tar")
@@ -55,6 +62,8 @@ CHECKPOINT_FILE         = os.path.join(BASE_DIR, "checkpoints", "checkpoint.pth.
 FINETUNE_CHECKPOINT     = os.path.join(BASE_DIR, "checkpoints", "finetune_checkpoint.pth.tar")
 # Mejor checkpoint durante finetune (basado en val_loss)
 FINETUNE_BEST           = os.path.join(BASE_DIR, "checkpoints", "finetune_best.pth.tar")
+# Mejor checkpoint durante SSL
+SSL_BEST                = os.path.join(BASE_DIR, "checkpoints", "ssl_best.pth.tar")
 
 # ============================================================
 # HIPERPARÁMETROS
@@ -67,6 +76,10 @@ NUM_EPOCHS    = 300
 CONF_THRESHOLD  = 0.5
 NMS_IOU_THRESH  = 0.45
 MAP_IOU_THRESH  = 0.5
+
+# SSL Hyperparams
+SSL_TAU         = 0.9   # Umbral de confianza para pseudo-labels (WBF)
+SSL_LOSS_WEIGHT = 1.0    # Peso relativo de la loss pseudo vs labelled
 
 # ============================================================
 # CLASES
@@ -164,6 +177,26 @@ test_transforms = A.Compose(
     [
         A.LongestMaxSize(max_size=IMAGE_SIZE),
         A.PadIfNeeded(min_height=IMAGE_SIZE, min_width=IMAGE_SIZE, border_mode=cv2.BORDER_CONSTANT),
+        A.Normalize(mean=[0, 0, 0], std=[1, 1, 1], max_pixel_value=255),
+        ToTensorV2(),
+    ],
+    bbox_params=A.BboxParams(format="yolo", min_visibility=0.4, label_fields=[]),
+)
+
+# Transformaciones agresivas para pseudo-labels (STAC)
+strong_transforms = A.Compose(
+    [
+        A.SmallestMaxSize(max_size=int(IMAGE_SIZE * SCALE)),
+        A.RandomCrop(width=IMAGE_SIZE, height=IMAGE_SIZE),
+        A.ColorJitter(brightness=0.6, contrast=0.6, saturation=0.6, hue=0.15, p=0.8),
+        A.GaussianBlur(blur_limit=(3, 7), p=0.3),
+        A.CoarseDropout(
+            num_holes_range=(2, 8),
+            hole_height_range=(10, 40),
+            hole_width_range=(10, 40),
+            p=0.5),
+        A.Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_CONSTANT),
+        A.HorizontalFlip(p=0.5),
         A.Normalize(mean=[0, 0, 0], std=[1, 1, 1], max_pixel_value=255),
         ToTensorV2(),
     ],
