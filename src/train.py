@@ -163,11 +163,7 @@ def main():
     
     # Inicializar modelo, optimizador y pérdida
     model = YOLOv4(num_classes=config.GENERIC_NUM_CLASSES).to(config.DEVICE)
-    #optimizer = optim.Adam(
-    #    model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY
-    #)
 
-    # Pendiente de probar:
     optimizer = optim.AdamW(
         model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY
         )
@@ -221,7 +217,7 @@ def main():
             patience_counter = 0
             # Guardar el modelo
             if config.SAVE_MODEL:
-                save_checkpoint(model, optimizer, filename=f"checkpoints/best_checkpoint.pth.tar")
+                save_checkpoint(model, optimizer, filename=config.CHECKPOINT_FILE)
         else:
             patience_counter += 1
             if patience_counter >= patience:
