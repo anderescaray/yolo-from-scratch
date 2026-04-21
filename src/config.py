@@ -20,7 +20,7 @@ import os
 # CONTROL CENTRAL DE DATASET
 # ============================================================
 # Opciones: "generic" | "specific"
-DATASET_TYPE = "generic"
+DATASET_TYPE = "specific"
 
 # ============================================================
 # RUTAS BASE
@@ -94,7 +94,7 @@ specific_class_labels = [
     "fried_tomato", "york_ham", "turkey_ham"
 ]
 
-GENERIC_NUM_CLASSES = 1 # Class-Agnostic 
+GENERIC_NUM_CLASSES = 1 # Class-Agnostic
 SPECIFIC_NUM_CLASSES = len(specific_class_labels)
 
 
