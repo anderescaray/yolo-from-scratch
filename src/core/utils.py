@@ -13,7 +13,7 @@ Funciones incluidas:
     - mean_average_precision (mAP): Métrica principal de evaluación.
 """
 
-import config
+import core.config as config
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
@@ -472,7 +472,7 @@ def get_loaders(
     config activo (DATASET_TYPE), pero se pueden sobreescribir explícitamente
     para usar rutas distintas (p.ej. en finetune.py).
     """
-    from dataset import YOLODataset
+    from core.dataset import YOLODataset
 
     IMAGE_SIZE = config.IMAGE_SIZE
 

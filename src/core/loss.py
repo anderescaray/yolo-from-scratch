@@ -16,7 +16,7 @@ Fórmula de la Loss total:
 
 import torch
 import torch.nn as nn
-from utils import intersection_over_union
+from core.utils import intersection_over_union
 
 class YoloLoss(nn.Module):
     def __init__(self):

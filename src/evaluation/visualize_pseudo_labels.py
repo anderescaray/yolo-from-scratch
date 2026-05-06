@@ -10,13 +10,16 @@ Uso:
     python src/visualize_pseudo_labels.py --max 30   # limitar a 30 imágenes
 """
 
-import argparse
+import sys
 import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+import argparse
 import cv2
 import numpy as np
 from PIL import Image
 
-import config
+import core.config as config
 
 OUTPUT_DIR = os.path.join(config.BASE_DIR, "pseudo_label_viz")
 

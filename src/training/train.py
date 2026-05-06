@@ -10,21 +10,24 @@ Se calcula mAP (Mean Average Precision) periódicamente
 
 """
 
-import config
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+import core.config as config
 import torch
 import torch.optim as optim
-from model import YOLOv4
+from core.model import YOLOv4
 from tqdm import tqdm 
-from loss import YoloLoss
+from core.loss import YoloLoss
 import warnings
 import wandb
-import os
 import cv2
 
 cv2.setNumThreads(0)
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-from utils import (
+from core.utils import (
     mean_average_precision,
     get_evaluation_bboxes,
     save_checkpoint,

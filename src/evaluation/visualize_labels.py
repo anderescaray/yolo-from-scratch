@@ -12,13 +12,16 @@ Uso:
     python src/visualize_labels.py --max 50        # limitar a 50 imágenes
 """
 
-import argparse
+import sys
 import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+import argparse
 import cv2
 import numpy as np
 from PIL import Image
 
-import config
+import core.config as config
 
 # Colores BGR distintos por clase
 COLORS = [

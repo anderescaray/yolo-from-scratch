@@ -1,9 +1,13 @@
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
 import cv2
 import torch
 import numpy as np
-import config
-from model import YOLOv3
-from utils import cells_to_bboxes, non_max_suppression
+import core.config as config
+from core.model import YOLOv3
+from core.utils import cells_to_bboxes, non_max_suppression
 
 def main():
     # 1. Cargar el modelo que acabas de entrenar

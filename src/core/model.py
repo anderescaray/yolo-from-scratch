@@ -34,7 +34,7 @@ https://arxiv.org/abs/2004.10934
 
 import torch
 import torch.nn as nn
-from config import CONFIG
+from core.config import CONFIG
 
 ##### BLOQUE CONVOLUCIÓN #####
 class CNNBlock(nn.Module):

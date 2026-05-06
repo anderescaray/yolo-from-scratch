@@ -20,8 +20,8 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image, ImageFile
-from utils import iou_width_height as iou
-from config import ANCHORS
+from core.utils import iou_width_height as iou
+from core.config import ANCHORS
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 

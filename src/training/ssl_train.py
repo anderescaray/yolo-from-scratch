@@ -12,16 +12,20 @@ Uso:
     python src/ssl_train.py
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-import config
-from model import YOLOv4
-from loss import YoloLoss
-from train import train_fn, val_fn
-from ssl_dataset import get_ssl_loader
-from utils import (
+import core.config as config
+from core.model import YOLOv4
+from core.loss import YoloLoss
+from training.train import train_fn, val_fn
+from training.ssl_dataset import get_ssl_loader
+from core.utils import (
     save_checkpoint,
     check_class_accuracy,
     get_evaluation_bboxes,
@@ -30,7 +34,6 @@ from utils import (
 
 import wandb
 import warnings
-import os
 import cv2
 
 cv2.setNumThreads(0)

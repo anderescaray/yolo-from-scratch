@@ -4,11 +4,15 @@ Script de Evaluación del Test Set
 
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
 import argparse
 import torch
-import config
-from model import YOLOv4
-from utils import (
+import core.config as config
+from core.model import YOLOv4
+from core.utils import (
     get_loaders,
     check_class_accuracy,
     get_evaluation_bboxes,

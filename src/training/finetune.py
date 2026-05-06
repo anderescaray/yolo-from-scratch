@@ -22,17 +22,21 @@ El backbone permanece congelado durante todo el fine-tuning para preservar
 las features visuales aprendidas del dataset genérico.
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from model import YOLOv4, ScalePrediction, initialize_weights
-from loss import YoloLoss
+from core.model import YOLOv4, ScalePrediction, initialize_weights
+from core.loss import YoloLoss
 from tqdm import tqdm
-import config
-from train import train_fn, val_fn
-from utils import (
+import core.config as config
+from training.train import train_fn, val_fn
+from core.utils import (
     get_loaders,
     save_checkpoint,
     check_class_accuracy,
@@ -42,7 +46,6 @@ from utils import (
 
 import wandb
 import warnings
-import os
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 warnings.filterwarnings("ignore")

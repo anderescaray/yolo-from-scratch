@@ -11,12 +11,15 @@ Cambia WEIGHTS_PATH para elegir qué checkpoint usar:
   - config.SSL_BEST          → Mejor SSL
 """
 
-import config
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+import core.config as config
 import torch
 import torch.optim as optim
-from model import YOLOv4
-from utils import load_checkpoint, get_loaders, plot_couple_examples
-import os
+from core.model import YOLOv4
+from core.utils import load_checkpoint, get_loaders, plot_couple_examples
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 

@@ -10,8 +10,12 @@ Cada batch contiene samples de ambos orígenes mezclados aleatoriamente
 para evitar catastrophic forgetting.
 """
 
-import config
-from dataset import YOLODataset
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+import core.config as config
+from core.dataset import YOLODataset
 from torch.utils.data import ConcatDataset, DataLoader
 
 

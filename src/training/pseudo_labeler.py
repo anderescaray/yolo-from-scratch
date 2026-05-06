@@ -12,8 +12,11 @@ Output:
     - CSV pseudo_train.csv con pares (imagen, label)
 """
 
-import argparse
+import sys
 import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+import argparse
 import csv
 import torch
 import numpy as np
@@ -22,9 +25,9 @@ from tqdm import tqdm
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-import config
-from model import YOLOv4
-from utils import cells_to_bboxes, non_max_suppression
+import core.config as config
+from core.model import YOLOv4
+from core.utils import cells_to_bboxes, non_max_suppression
 
 
 # ============================================================
