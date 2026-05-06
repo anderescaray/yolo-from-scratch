@@ -18,7 +18,7 @@ import os
 import argparse
 import pandas as pd
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def scan_folder(folder_path: str, output_csv: str) -> None:

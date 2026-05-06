@@ -30,7 +30,7 @@ PIN_MEMORY = True
 LOAD_MODEL = False
 SAVE_MODEL = True
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 if DATASET_TYPE == "generic":
     DATASET_DIR      = os.path.join(BASE_DIR, "data", "generic_dataset")
