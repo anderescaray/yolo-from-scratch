@@ -15,6 +15,13 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 import core.config as config
+
+# train.py opera siempre sobre el dataset genérico.
+assert config.DATASET_TYPE == "generic", (
+    "train.py requiere DATASET_TYPE='generic' en config.py. "
+    f"Valor actual: '{config.DATASET_TYPE}'."
+)
+
 import torch
 import torch.optim as optim
 from core.model import YOLOv4
@@ -66,7 +73,7 @@ def train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors):
             y[1].to(config.DEVICE, non_blocking=True),
             y[2].to(config.DEVICE, non_blocking=True),
         )
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast("cuda"):
             out = model(x)
             
         # FUERA del autocast, para convertir a las predicciones a Float32
@@ -132,13 +139,16 @@ def val_fn(val_loader, model, loss_fn, scaled_anchors):
                 y[1].to(config.DEVICE, non_blocking=True),
                 y[2].to(config.DEVICE, non_blocking=True),
             )
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast("cuda"):
                 out = model(x)
-                loss = (
-                    loss_fn(out[0], y0, scaled_anchors[0]) # objetos grandes
-                    + loss_fn(out[1], y1, scaled_anchors[1]) # medianos
-                    + loss_fn(out[2], y2, scaled_anchors[2]) # pequeños
-                )
+            out0 = out[0].float()
+            out1 = out[1].float()
+            out2 = out[2].float()
+            loss = (
+                loss_fn(out0, y0, scaled_anchors[0]) # big 
+                + loss_fn(out1, y1, scaled_anchors[1]) # medium
+                + loss_fn(out2, y2, scaled_anchors[2]) # small
+            )
             losses.append(loss.item())
             mean_loss = sum(losses) / len(losses)
             loop.set_postfix(val_loss=mean_loss)
@@ -172,7 +182,7 @@ def main():
         )
     
     loss_fn = YoloLoss()
-    scaler = torch.cuda.amp.GradScaler() # Para fp16
+    scaler = torch.amp.GradScaler("cuda")
 
     # Cargar datos del dataset genérico (DATASET_TYPE = "generic" en config.py)
     train_loader, val_loader, train_eval_loader = get_loaders(
