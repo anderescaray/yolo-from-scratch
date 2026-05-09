@@ -147,18 +147,18 @@ class YoloLoss(nn.Module):
         
         # Pasamos las preds de la red (de las bboxes) a formato normal
         # y cogem solo las dimensiones y las concatenamos
-        box_preds = torch.cat([self.sigmoid(predictions[..., 1:3]), torch.exp(predictions[..., 3:5].clamp(min=-10, max=10)) * anchors], dim=-1)
+        box_preds = torch.cat([torch.sigmoid(predictions[..., 1:3]), torch.exp(predictions[..., 3:5].clamp(min=-10, max=10)) * anchors], dim=-1)
         ious = intersection_over_union(box_preds[obj], target[..., 1:5][obj]).detach()
         
         # Para que la confianza predicha sea como el IoU
-        object_loss = self.mse(self.sigmoid(predictions[..., 0:1][obj]), ious * target[..., 0:1][obj])
+        object_loss = self.mse(torch.sigmoid(predictions[..., 0:1][obj]), ious * target[..., 0:1][obj])
 
     ### box loss ###
         # solo donde obj = True
         
         # Construimos las cajas predichas sin modificar el tensor original de predictions
         # Trabajamos con variables locales para no corromper los datos entre diferentes escalas de la grid
-        pred_xy = self.sigmoid(predictions[..., 1:3])           # centro (x,y) entre 0 y 1
+        pred_xy = torch.sigmoid(predictions[..., 1:3])           # centro (x,y) entre 0 y 1
         pred_wh = torch.exp(predictions[..., 3:5].clamp(min=-10, max=10)) * anchors    # (w,h) en escala de la grid
         pred_boxes = torch.cat([pred_xy, pred_wh], dim=-1)      # (x, y, w, h)
 
@@ -192,5 +192,3 @@ class YoloLoss(nn.Module):
     
         return total_loss
 
-    def sigmoid(self, x):
-        return torch.sigmoid(x)

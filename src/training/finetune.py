@@ -161,7 +161,7 @@ def main():
     # ----------------------------------------------------------
     loss_fn = YoloLoss()
 
-    scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.amp.GradScaler("cuda")
 
     scaled_anchors = (
         torch.tensor(config.ANCHORS)
