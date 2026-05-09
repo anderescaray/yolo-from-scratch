@@ -126,7 +126,7 @@ def decode_predictions(model, image_tensor, anchors, device):
     image_tensor = image_tensor.unsqueeze(0).to(device)
 
     with torch.no_grad():
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast("cuda"):
             predictions = model(image_tensor)
 
     all_boxes = []

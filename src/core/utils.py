@@ -248,7 +248,7 @@ def plot_image(image, boxes):
     """Plots predicted bounding boxes on the image"""
     cmap = plt.get_cmap("tab20b")
     
-    class_labels = config.class_labels 
+    class_labels = config.specific_class_labels
 
     colors = [cmap(i) for i in np.linspace(0, 1, len(class_labels))]
     im = np.array(image)
@@ -317,9 +317,10 @@ def get_evaluation_bboxes(
             for idx, (box) in enumerate(boxes_scale_i):
                 bboxes[idx] += box
 
-        # we just want one bbox for each label, not one for each scale
+        S_small = predictions[2].shape[2]
+        anchor_small = torch.tensor([*anchors[2]]).to(device) * S_small
         true_bboxes = cells_to_bboxes(
-            labels[2], anchor, S=S, is_preds=False
+            labels[2], anchor_small, S=S_small, is_preds=False
         )
 
         for idx in range(batch_size):
@@ -616,9 +617,7 @@ def save_prediction_image(image, boxes, index, labels):
             bbox={"color": colors[class_pred], "pad": 0},
         )
     
-    # Guardar 
-    filename = os.path.join(config.BASE_DIR, "saved_images", f"prediccion_test_{index}.png")
-    #filename = f"../saved_images/prediccion_test_{index}.png"
+    filename = config.BASE_DIR / "saved_images" / f"prediccion_test_{index}.png"
     plt.savefig(filename)
     plt.close() 
     print(f"Imagen guardada: {filename}")

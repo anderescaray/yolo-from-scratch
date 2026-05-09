@@ -14,7 +14,7 @@ import torch
 import cv2
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-import os
+from pathlib import Path
 
 # ============================================================
 # CONTROL CENTRAL DE DATASET
@@ -30,40 +30,37 @@ PIN_MEMORY = True
 LOAD_MODEL = False
 SAVE_MODEL = True
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 if DATASET_TYPE == "generic":
-    DATASET_DIR      = os.path.join(BASE_DIR, "data", "generic_dataset")
-    IMG_DIR          = os.path.join(DATASET_DIR, "train")
-    LABEL_DIR        = os.path.join(DATASET_DIR, "train")
-    VAL_IMG_DIR      = os.path.join(DATASET_DIR, "val")
-    VAL_LABEL_DIR    = os.path.join(DATASET_DIR, "val")
-    TRAIN_CSV        = os.path.join(DATASET_DIR, "train.csv")
-    VAL_CSV          = os.path.join(DATASET_DIR, "val.csv")
+    DATASET_DIR      = BASE_DIR / "data" / "generic_dataset"
+    IMG_DIR          = DATASET_DIR / "train"
+    LABEL_DIR        = DATASET_DIR / "train"
+    VAL_IMG_DIR      = DATASET_DIR / "val"
+    VAL_LABEL_DIR    = DATASET_DIR / "val"
+    TRAIN_CSV        = DATASET_DIR / "train.csv"
+    VAL_CSV          = DATASET_DIR / "val.csv"
 else:  # "specific"
-    DATASET_DIR      = os.path.join(BASE_DIR, "data", "yolo_dataset")
-    IMG_DIR          = os.path.join(DATASET_DIR, "train", "labelled")
-    LABEL_DIR        = os.path.join(DATASET_DIR, "train", "labelled")
-    VAL_IMG_DIR      = os.path.join(DATASET_DIR, "val")
-    VAL_LABEL_DIR    = os.path.join(DATASET_DIR, "val")
-    TRAIN_CSV        = os.path.join(DATASET_DIR, "train.csv")
-    VAL_CSV          = os.path.join(DATASET_DIR, "val.csv")
-    TEST_CSV         = os.path.join(DATASET_DIR, "test.csv")
-    TEST_IMG_DIR     = os.path.join(DATASET_DIR, "test")
-    TEST_LABEL_DIR   = os.path.join(DATASET_DIR, "test")
+    DATASET_DIR      = BASE_DIR / "data" / "yolo_dataset"
+    IMG_DIR          = DATASET_DIR / "train" / "labelled"
+    LABEL_DIR        = DATASET_DIR / "train" / "labelled"
+    VAL_IMG_DIR      = DATASET_DIR / "val"
+    VAL_LABEL_DIR    = DATASET_DIR / "val"
+    TRAIN_CSV        = DATASET_DIR / "train.csv"
+    VAL_CSV          = DATASET_DIR / "val.csv"
+    TEST_CSV         = DATASET_DIR / "test.csv"
+    TEST_IMG_DIR     = DATASET_DIR / "test"
+    TEST_LABEL_DIR   = DATASET_DIR / "test"
     # SSL
-    UNLABELLED_IMG_DIR  = os.path.join(DATASET_DIR, "train", "unlabelled")
-    PSEUDO_LABEL_DIR    = os.path.join(DATASET_DIR, "train", "pseudo_labelled")
-    PSEUDO_CSV          = os.path.join(DATASET_DIR, "pseudo_train.csv")
+    UNLABELLED_IMG_DIR  = DATASET_DIR / "train" / "unlabelled"
+    PSEUDO_LABEL_DIR    = DATASET_DIR / "train" / "pseudo_labelled"
+    PSEUDO_CSV          = DATASET_DIR / "pseudo_train.csv"
 
 # Checkpoint del preentrenamiento genérico (input del finetune)
-CHECKPOINT_FILE         = os.path.join(BASE_DIR, "checkpoints", "checkpoint.pth.tar")
-# Checkpoint de salida del finetune
-FINETUNE_CHECKPOINT     = os.path.join(BASE_DIR, "checkpoints", "finetune_checkpoint.pth.tar")
-# Mejor checkpoint durante finetune (basado en val_loss)
-FINETUNE_BEST           = os.path.join(BASE_DIR, "checkpoints", "finetune_best.pth.tar")
-# Mejor checkpoint durante SSL
-SSL_BEST                = os.path.join(BASE_DIR, "checkpoints", "ssl_best.pth.tar")
+CHECKPOINT_FILE     = BASE_DIR / "checkpoints" / "checkpoint.pth.tar"
+FINETUNE_CHECKPOINT = BASE_DIR / "checkpoints" / "finetune_checkpoint.pth.tar"
+FINETUNE_BEST       = BASE_DIR / "checkpoints" / "finetune_best.pth.tar"
+SSL_BEST            = BASE_DIR / "checkpoints" / "ssl_best.pth.tar"
 
 # ============================================================
 # HIPERPARÁMETROS

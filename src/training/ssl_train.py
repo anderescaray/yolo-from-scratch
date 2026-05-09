@@ -90,7 +90,7 @@ def main():
     # 3. COMPONENTES
     # ----------------------------------------------------------
     loss_fn = YoloLoss()
-    scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.amp.GradScaler("cuda")
 
     optimizer = optim.AdamW(
         model.parameters(),
