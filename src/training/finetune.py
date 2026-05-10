@@ -2,8 +2,8 @@
 YOLOv4 Fine-Tuning Pipeline
 ============================
 
-Loads model pretrained with generic dataset and adapts it to specific
-supermarket dataset (20 classes) through a 2-phase process:
+Loads model pretrained with generic dataset and adapts it to the specific
+supermarket dataset (20 classes) through a 3-phase progressive unfreezing:
 
     Phase 1 — Heads only   (backbone + SPP + neck frozen)
     ─────────────────────────────────────────────────────
@@ -14,12 +14,15 @@ supermarket dataset (20 classes) through a 2-phase process:
     Phase 2 — Neck + SPP + heads   (backbone still frozen)
     ─────────────────────────────────────────────────────
     • Goal: fine-tune neck and SPP with new classes
-    • Low LR (1e-5) + CosineAnnealingLR for smooth descent
+    • Low LR (5e-6) + CosineAnnealingLR for smooth descent
     • Early stopping: saves best checkpoint if val_loss improves
     • Evaluates mAP every MAP_EVAL_FREQ epochs
 
-Backbone remains frozen throughout fine-tuning to preserve
-visual features learned from generic dataset.
+    Phase 3 — Full model   (backbone unfrozen)
+    ─────────────────────────────────────────────────────
+    • Goal: global fine-tuning to adapt backbone to new domain
+    • Very low LR (1e-6) to avoid catastrophic forgetting
+    • Early stopping continues from Phase 2 best val_loss
 """
 
 import sys
@@ -153,11 +156,11 @@ def main():
         val_img_dir=config.VAL_IMG_DIR,
         val_label_dir=config.VAL_LABEL_DIR,
     )
-    print(f"Dataloaders listos:  train={len(train_loader.dataset)} imgs | "
+    print(f"  Dataloaders ready:  train={len(train_loader.dataset)} imgs | "
           f"val={len(val_loader.dataset)} imgs\n")
 
     # ----------------------------------------------------------
-    # 4. COMPONENTES COMUNES
+    # 4. SHARED COMPONENTS
     # ----------------------------------------------------------
     loss_fn = YoloLoss()
 
@@ -187,11 +190,11 @@ def main():
     )
 
     # ──────────────────────────────────────────────────────────
-    # FASE 1: Solo cabezas
+    # PHASE 1: Heads only
     # ──────────────────────────────────────────────────────────
     print(f"{'─'*60}")
-    print(f"  FASE 1: Entrenando solo las cabezas  ({FASE1_EPOCHS} epochs)")
-    print(f"  LR={LR_FASE1}  |  backbone+SPP+neck CONGELADOS")
+    print(f"  PHASE 1: Training heads only  ({FASE1_EPOCHS} epochs)")
+    print(f"  LR={LR_FASE1}  |  backbone+SPP+neck FROZEN")
     print(f"{'─'*60}\n")
 
     freeze_all_except_heads(model)
@@ -203,30 +206,32 @@ def main():
     )
 
     for epoch in range(FASE1_EPOCHS):
-        print(f"[Fase 1]  Epoch {epoch+1}/{FASE1_EPOCHS}")
+        print(f"[Phase 1]  Epoch {epoch+1}/{FASE1_EPOCHS}")
         train_loss = train_fn(train_loader, model, optimizer_f1, loss_fn, scaler, scaled_anchors)
         val_loss   = val_fn(val_loader, model, loss_fn, scaled_anchors)
 
         wandb.log({
-            "fase": 1,
+            "phase": 1,
             "epoch": epoch + 1,
             "train/loss": train_loss,
             "val/loss":   val_loss,
             "lr": optimizer_f1.param_groups[0]["lr"],
         })
 
-        if config.SAVE_MODEL:
-            save_checkpoint(model, optimizer_f1, filename=config.FINETUNE_CHECKPOINT)
+    if config.SAVE_MODEL:
+        save_checkpoint(model, optimizer_f1, filename=config.FINETUNE_CHECKPOINT)
+        print("  Phase 1 checkpoint saved.\n")
 
     # ──────────────────────────────────────────────────────────
-    # FASE 2: Neck + SPP + cabezas
+    # PHASE 2: Neck + SPP + heads
     # ──────────────────────────────────────────────────────────
     print(f"\n{'─'*60}")
-    print(f"  FASE 2: Afinando neck + SPP + cabezas  ({FASE2_EPOCHS} epochs)")
-    print(f"  LR={LR_FASE2}  |  backbone CONGELADO  |  early stopping (patience={PATIENCE})")
+    print(f"  PHASE 2: Fine-tuning neck + SPP + heads  ({FASE2_EPOCHS} epochs)")
+    print(f"  LR={LR_FASE2}  |  backbone FROZEN  |  early stopping (patience={PATIENCE})")
     print(f"{'─'*60}\n")
 
     unfreeze_neck_and_spp(model)
+    scaler = torch.amp.GradScaler("cuda")
 
     optimizer_f2 = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
@@ -239,34 +244,31 @@ def main():
     epochs_no_improve = 0
 
     for epoch in range(FASE2_EPOCHS):
-        print(f"[Fase 2]  Epoch {epoch+1}/{FASE2_EPOCHS}  |  LR={scheduler.get_last_lr()[0]:.2e}")
+        print(f"[Phase 2]  Epoch {epoch+1}/{FASE2_EPOCHS}  |  LR={scheduler.get_last_lr()[0]:.2e}")
         train_loss = train_fn(train_loader, model, optimizer_f2, loss_fn, scaler, scaled_anchors)
         val_loss   = val_fn(val_loader, model, loss_fn, scaled_anchors)
         scheduler.step()
 
         log_dict = {
-            "fase": 2,
+            "phase": 2,
             "epoch": FASE1_EPOCHS + epoch + 1,
             "train/loss": train_loss,
             "val/loss":   val_loss,
             "lr": scheduler.get_last_lr()[0],
         }
 
-        # Guardar checkpoint periódico
         if config.SAVE_MODEL:
             save_checkpoint(model, optimizer_f2, filename=config.FINETUNE_CHECKPOINT)
 
-        # Guardar el mejor checkpoint
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             epochs_no_improve = 0
             save_checkpoint(model, optimizer_f2, filename=config.FINETUNE_BEST)
-            print(f"  ✅ Mejor val_loss: {best_val_loss:.4f} → guardado como finetune_best.pth.tar")
+            print(f"  ✅ Best val_loss: {best_val_loss:.4f} → saved as finetune_best.pth.tar")
         else:
             epochs_no_improve += 1
-            print(f"  ⏳ Sin mejora: {epochs_no_improve}/{PATIENCE}")
+            print(f"  ⏳ No improvement: {epochs_no_improve}/{PATIENCE}")
 
-        # Evaluar mAP periódicamente
         if (epoch + 1) % MAP_EVAL_FREQ == 0:
             class_acc, noobj_acc, obj_acc = check_class_accuracy(
                 model, val_loader, threshold=config.CONF_THRESHOLD
@@ -297,63 +299,92 @@ def main():
 
         wandb.log(log_dict)
 
-        # Early stopping
         if epochs_no_improve >= PATIENCE:
-            print(f"\n  Early stopping activado tras {PATIENCE} epochs sin mejora.")
+            print(f"\n  Early stopping triggered after {PATIENCE} epochs without improvement.")
             break
 
-
     # ──────────────────────────────────────────────────────────
-    # FASE 3: Todo el modelo (Descongelación total)
+    # PHASE 3: Full model (total unfreezing)
     # ──────────────────────────────────────────────────────────
     print(f"\n{'─'*60}")
-    print(f"  FASE 3: Fine-tuning global del Backbone  ({FASE3_EPOCHS} epochs)")
-    print(f"  LR={LR_FASE3}  |  TODO DESCONGELADO")
+    print(f"  PHASE 3: Global backbone fine-tuning  ({FASE3_EPOCHS} epochs)")
+    print(f"  LR={LR_FASE3}  |  FULLY UNFROZEN")
     print(f"{'─'*60}\n")
 
     unfreeze_all(model)
+    scaler = torch.amp.GradScaler("cuda")
 
     optimizer_f3 = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=LR_FASE3,
         weight_decay=config.WEIGHT_DECAY,
     )
-    
     scheduler_f3 = CosineAnnealingLR(optimizer_f3, T_max=FASE3_EPOCHS, eta_min=1e-7)
 
-    epochs_no_improve = 0 # Reiniciamos la paciencia
+    epochs_no_improve = 0  # Reset patience for phase 3
 
     for epoch in range(FASE3_EPOCHS):
-        print(f"[Fase 3]  Epoch {epoch+1}/{FASE3_EPOCHS}  |  LR={scheduler_f3.get_last_lr()[0]:.2e}")
+        print(f"[Phase 3]  Epoch {epoch+1}/{FASE3_EPOCHS}  |  LR={scheduler_f3.get_last_lr()[0]:.2e}")
         train_loss = train_fn(train_loader, model, optimizer_f3, loss_fn, scaler, scaled_anchors)
         val_loss   = val_fn(val_loader, model, loss_fn, scaled_anchors)
         scheduler_f3.step()
 
-        # Guardar el mejor checkpoint global
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             epochs_no_improve = 0
             save_checkpoint(model, optimizer_f3, filename=config.FINETUNE_BEST)
-            print(f"  ✅ Nuevo mejor val_loss global: {best_val_loss:.4f}")
+            print(f"  ✅ New global best val_loss: {best_val_loss:.4f}")
         else:
             epochs_no_improve += 1
+            print(f"  ⏳ No improvement: {epochs_no_improve}/{PATIENCE}")
 
-        wandb.log({
-            "fase": 3,
-            "epoch": FASE1_EPOCHS + FASE2_EPOCHS + epoch + 1,
-            "train/loss": train_loss,
-            "val/loss":   val_loss,
-            "lr": scheduler_f3.get_last_lr()[0],
-        })
+        if (epoch + 1) % MAP_EVAL_FREQ == 0:
+            class_acc, noobj_acc, obj_acc = check_class_accuracy(
+                model, val_loader, threshold=config.CONF_THRESHOLD
+            )
+            pred_boxes, true_boxes = get_evaluation_bboxes(
+                val_loader, model,
+                iou_threshold=config.NMS_IOU_THRESH,
+                anchors=config.ANCHORS,
+                threshold=config.CONF_THRESHOLD,
+                device=config.DEVICE,
+            )
+            map_val = mean_average_precision(
+                pred_boxes, true_boxes,
+                iou_threshold=config.MAP_IOU_THRESH,
+                box_format="midpoint",
+                num_classes=config.SPECIFIC_NUM_CLASSES,
+            )
+            print(f"  mAP@{config.MAP_IOU_THRESH}: {map_val.item():.4f}")
+            wandb.log({
+                "phase": 3,
+                "epoch": FASE1_EPOCHS + FASE2_EPOCHS + epoch + 1,
+                "train/loss": train_loss,
+                "val/loss":   val_loss,
+                "lr": scheduler_f3.get_last_lr()[0],
+                "eval/mAP":       map_val.item(),
+                "eval/class_acc": class_acc,
+                "eval/obj_acc":   obj_acc,
+                "eval/noobj_acc": noobj_acc,
+            })
+            model.train()
+        else:
+            wandb.log({
+                "phase": 3,
+                "epoch": FASE1_EPOCHS + FASE2_EPOCHS + epoch + 1,
+                "train/loss": train_loss,
+                "val/loss":   val_loss,
+                "lr": scheduler_f3.get_last_lr()[0],
+            })
 
         if epochs_no_improve >= PATIENCE:
-            print("  Early stopping activado en Fase 3.")
+            print("  Early stopping triggered in Phase 3.")
             break
 
     print(f"\n{'='*60}")
-    print(f"  Fine-tuning completado.")
-    print(f"  Mejor val_loss: {best_val_loss:.4f}")
-    print(f"  Checkpoint guardado en: {config.FINETUNE_BEST}")
+    print(f"  Fine-tuning complete.")
+    print(f"  Best val_loss: {best_val_loss:.4f}")
+    print(f"  Checkpoint saved at: {config.FINETUNE_BEST}")
     print(f"{'='*60}\n")
 
     wandb.finish()
