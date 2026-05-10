@@ -12,15 +12,9 @@ Se calcula mAP (Mean Average Precision) periódicamente
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import core.config as config
-
-# train.py opera siempre sobre el dataset genérico.
-assert config.DATASET_TYPE == "generic", (
-    "train.py requiere DATASET_TYPE='generic' en config.py. "
-    f"Valor actual: '{config.DATASET_TYPE}'."
-)
 
 import torch
 import torch.optim as optim
@@ -268,5 +262,10 @@ def main():
     wandb.finish()
 
 if __name__ == "__main__":
+    # train.py opera siempre sobre el dataset genérico.
+    assert config.DATASET_TYPE == "generic", (
+        "train.py requiere DATASET_TYPE='generic' en config.py. "
+        f"Valor actual: '{config.DATASET_TYPE}'."
+    )
     print(f"Using device: {config.DEVICE}")
     main()

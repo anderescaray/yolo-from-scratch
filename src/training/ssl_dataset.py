@@ -12,7 +12,7 @@ para evitar catastrophic forgetting.
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import core.config as config
 from core.dataset import YOLODataset
