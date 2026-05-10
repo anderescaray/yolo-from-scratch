@@ -2,14 +2,14 @@
 Pseudo-Label Generator (TTA + WBF)
 ====================================
 
-Genera pseudo-labels offline para imágenes sin etiquetar usando:
+Generates pseudo-labels offline for unlabeled images using:
   1. Test-Time Augmentation (TTA): original + horizontal flip
-  2. Weighted Boxes Fusion (WBF): fusiona las cajas coincidentes
-  3. Filtrado por umbral tau para quedarse solo con las de alta confianza
+  2. Weighted Boxes Fusion (WBF): fuses matching boxes
+  3. Threshold filtering with tau to keep only high-confidence ones
 
 Output:
-    - Archivos .txt en formato YOLO en data/yolo_dataset/train/pseudo_labelled/
-    - CSV pseudo_train.csv con pares (imagen, label)
+    - .txt files in YOLO format in data/yolo_dataset/train/pseudo_labelled/
+    - CSV pseudo_train.csv with (image, label) pairs
 """
 
 import sys
@@ -35,7 +35,7 @@ from core.utils import cells_to_bboxes, non_max_suppression
 # ============================================================
 
 def _iou_single(box_a, box_b):
-    """IoU entre dos cajas en formato [x_center, y_center, w, h] normalizado."""
+    """IoU between two boxes in normalized [x_center, y_center, w, h] format."""
     ax1 = box_a[0] - box_a[2] / 2
     ay1 = box_a[1] - box_a[3] / 2
     ax2 = box_a[0] + box_a[2] / 2
@@ -61,17 +61,17 @@ def _iou_single(box_a, box_b):
 
 def weighted_boxes_fusion(boxes_list, iou_threshold=0.55):
     """
-    WBF simplificado para fusionar cajas de N pasadas de TTA.
+    Simplified WBF to fuse boxes from N TTA passes.
 
     Args:
-        boxes_list: lista de listas, cada sub-lista contiene cajas
-                    en formato [class, score, x, y, w, h]
-        iou_threshold: umbral IoU para considerar que dos cajas son la misma
+        boxes_list: list of lists, each sub-list contains boxes
+                    in format [class, score, x, y, w, h]
+        iou_threshold: IoU threshold to consider two boxes the same
 
     Returns:
-        fused_boxes: lista de cajas fusionadas [class, score, x, y, w, h]
+        fused_boxes: list of fused boxes [class, score, x, y, w, h]
     """
-    # Juntamos todas las cajas en una sola lista
+    # Combine all boxes into one list
     all_boxes = []
     for boxes in boxes_list:
         all_boxes.extend(boxes)
@@ -79,26 +79,26 @@ def weighted_boxes_fusion(boxes_list, iou_threshold=0.55):
     if len(all_boxes) == 0:
         return []
 
-    # Ordenar por confianza descendente
+    # Sort by confidence descending
     all_boxes = sorted(all_boxes, key=lambda b: b[1], reverse=True)
 
-    # Clusters de cajas fusionadas
-    clusters = []       # cada cluster es una lista de cajas que se solapan
-    fused_boxes = []    # la caja promedio resultante de cada cluster
+    # Clusters of fused boxes
+    clusters = []       # each cluster is a list of overlapping boxes
+    fused_boxes = []    # the resulting average box for each cluster
 
     for box in all_boxes:
         matched = False
         for i, fused in enumerate(fused_boxes):
-            # Solo fusionar si son de la misma clase
+            # Only fuse if same class
             if int(box[0]) == int(fused[0]):
                 iou_val = _iou_single(box[2:], fused[2:])
                 if iou_val > iou_threshold:
-                    # Añadir al cluster existente
+                    # Add to existing cluster
                     clusters[i].append(box)
-                    # Recalcular la caja fusionada como media ponderada por confianza
+                    # Recalculate fused box as confidence-weighted average
                     cluster = clusters[i]
                     total_weight = sum(b[1] for b in cluster)
-                    avg_score = total_weight / len(cluster) # confianza media (si alucina en todas, pueden pasar pseudo-labels malas)
+                    avg_score = total_weight / len(cluster) # average confidence (if hallucinates in all, bad pseudo-labels can pass)
                     avg_x = sum(b[1] * b[2] for b in cluster) / total_weight
                     avg_y = sum(b[1] * b[3] for b in cluster) / total_weight
                     avg_w = sum(b[1] * b[4] for b in cluster) / total_weight
@@ -115,13 +115,13 @@ def weighted_boxes_fusion(boxes_list, iou_threshold=0.55):
 
 
 # ============================================================
-# INFERENCIA CON TTA
+# INFERENCE WITH TTA
 # ============================================================
 
 def decode_predictions(model, image_tensor, anchors, device):
     """
-    Pasa una imagen por el modelo y decodifica las predicciones de las 3 escalas
-    a formato [class, score, x, y, w, h] normalizado (0-1).
+    Pass image through model and decode predictions from 3 scales
+    to normalized [class, score, x, y, w, h] format (0-1).
     """
     image_tensor = image_tensor.unsqueeze(0).to(device)
 
@@ -140,7 +140,7 @@ def decode_predictions(model, image_tensor, anchors, device):
 
 
 def flip_boxes_horizontal(boxes):
-    """Invierte la coordenada X de las cajas para deshacer un flip horizontal."""
+    """Inverts X coordinate of boxes to undo horizontal flip."""
     flipped = []
     for box in boxes:
         cls, score, x, y, w, h = box

@@ -1,15 +1,15 @@
 """
-Visualizador de Labels del Dataset Etiquetado
-==============================================
+Labeled Dataset Label Visualizer
+=================================
 
-Dibuja las bounding boxes ground truth sobre las imágenes etiquetadas
-y las guarda en 'label_viz/' para comprobar que las labels son correctas.
+Draws ground truth bounding boxes on labeled images
+and saves them in 'label_viz/' to verify labels are correct.
 
-Uso:
-    python src/visualize_labels.py                 # todas las imágenes de train/labelled
-    python src/visualize_labels.py --split val     # imágenes de val
-    python src/visualize_labels.py --split test    # imágenes de test
-    python src/visualize_labels.py --max 50        # limitar a 50 imágenes
+Usage:
+    python src/visualize_labels.py                 # all images from train/labelled
+    python src/visualize_labels.py --split val     # val images
+    python src/visualize_labels.py --split test    # test images
+    python src/visualize_labels.py --max 50        # limit to 50 images
 """
 
 import sys
@@ -23,7 +23,7 @@ from PIL import Image
 
 import core.config as config
 
-# Colores BGR distintos por clase
+# Different BGR colors per class
 COLORS = [
     (255,  56,  56), (255, 157, 151), (255, 112,  31), (255, 178,  29),
     (207, 210,  49), ( 72, 249,  10), (146, 204,  23), ( 61, 219, 134),
@@ -35,7 +35,7 @@ COLORS = [
 
 def draw_boxes(image_np, boxes, class_names):
     """
-    Dibuja bboxes en formato YOLO [cls, x_center, y_center, w, h] sobre la imagen.
+    Draws bboxes in YOLO format [cls, x_center, y_center, w, h] on image.
     """
     h, w = image_np.shape[:2]
     img = image_np.copy()
@@ -56,7 +56,7 @@ def draw_boxes(image_np, boxes, class_names):
 
         cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
 
-        # Fondo del texto
+        # Text background
         (lw, lh), _ = cv2.getTextSize(name, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         cv2.rectangle(img, (x1, y1 - lh - 6), (x1 + lw, y1), color, -1)
         cv2.putText(img, name, (x1, y1 - 4),

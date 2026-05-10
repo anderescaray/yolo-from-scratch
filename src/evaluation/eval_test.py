@@ -1,6 +1,6 @@
 """
-Script de Evaluación del Test Set
-=========================================
+Test Set Evaluation Script
+=================================
 
 """
 
@@ -26,31 +26,31 @@ def evaluate_model(weights_path):
         weights_path = os.path.join(config.BASE_DIR, weights_path)
 
     print(f"\n{'='*60}")
-    print(f"  EVALUACIÓN EN CONJUNTO DE TEST")
-    print(f"  Modelo: {weights_path}")
+    print(f"  TEST SET EVALUATION")
+    print(f"  Model: {weights_path}")
     print(f"{'='*60}\n")
 
     model = YOLOv4(num_classes=config.SPECIFIC_NUM_CLASSES).to(config.DEVICE)
 
-    # Cargar los pesos del checkpoint
-    print("Cargando pesos...")
+    # Load weights from checkpoint
+    print("Loading weights...")
     checkpoint = torch.load(weights_path, map_location=config.DEVICE, weights_only=False)
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
-    print(" ✅ Pesos cargados correctamente.\n")
+    print(" ✅ Weights loaded successfully.\n")
 
-    # Cargar el dataLoader de test
+    # Load test DataLoader
     _, test_loader, _ = get_loaders(
-        train_csv_path=config.TRAIN_CSV, # Relleno
-        val_csv_path=config.TEST_CSV,    
+        train_csv_path=config.TRAIN_CSV, # Placeholder
+        val_csv_path=config.TEST_CSV,
         train_img_dir=config.IMG_DIR,
         train_label_dir=config.LABEL_DIR,
         val_img_dir=config.TEST_IMG_DIR,
         val_label_dir=config.TEST_LABEL_DIR,
     )
 
-    # Evaluación
-    print("Calculando métricas en el set de Test...")
+    # Evaluation
+    print("Calculating metrics on test set...")
     with torch.no_grad():
         class_acc, noobj_acc, obj_acc = check_class_accuracy(
             model, test_loader, threshold=config.CONF_THRESHOLD
@@ -71,12 +71,12 @@ def evaluate_model(weights_path):
             num_classes=config.SPECIFIC_NUM_CLASSES,
         )
 
-    # Reporte Final
-    print(f"\n  RESULTADOS FINALES")
+    # Final Report
+    print(f"\n  FINAL RESULTS")
     print(f"  mAP@{config.MAP_IOU_THRESH}: {map_test.item():.4f}")
-    print(f"  Precisión de Clase: {class_acc:.2f}%")
-    print(f"  Acierto con Objeto: {obj_acc:.2f}%")
-    print(f"  Acierto sin Objeto (Fondo): {noobj_acc:.2f}%")
+    print(f"  Class Accuracy: {class_acc:.2f}%")
+    print(f"  Object Detection Accuracy: {obj_acc:.2f}%")
+    print(f"  No Object Accuracy (Background): {noobj_acc:.2f}%")
     print(f"{'='*60}\n")
 
 if __name__ == "__main__":

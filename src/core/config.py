@@ -1,14 +1,14 @@
 """
-YOLOv4 Configuración e Hiperparámetros
-========================================
+YOLOv4 Configuration and Hyperparameters
+=========================================
 
-Este módulo centraliza todas las constantes, hiperparámetros y configuraciones
-del modelo. Soporta dos modos de dataset:
+This module centralizes all constants, hyperparameters and model configurations.
+Supports two dataset modes:
 
-    DATASET_TYPE = "generic"   → Pre-entrenamiento con dataset genérico (85 clases)
-    DATASET_TYPE = "specific"  → Fine-tuning con dataset específico (20 clases)
+    DATASET_TYPE = "generic"   → Pretraining with generic dataset (85 classes)
+    DATASET_TYPE = "specific"  → Fine-tuning with specific dataset (20 classes)
 
-Cambia DATASET_TYPE aquí y todas las rutas y clases se adaptan automáticamente.
+Change DATASET_TYPE here and all paths and classes adapt automatically.
 """
 import torch
 import cv2
@@ -17,13 +17,13 @@ from albumentations.pytorch import ToTensorV2
 from pathlib import Path
 
 # ============================================================
-# CONTROL CENTRAL DE DATASET
+# CENTRAL DATASET CONTROL
 # ============================================================
-# Opciones: "generic" | "specific"
+# Options: "generic" | "specific"
 DATASET_TYPE = "specific"
 
 # ============================================================
-# RUTAS BASE
+# BASE PATHS
 # ============================================================
 NUM_WORKERS = 4
 PIN_MEMORY = True
@@ -56,14 +56,14 @@ else:  # "specific"
     PSEUDO_LABEL_DIR    = DATASET_DIR / "train" / "pseudo_labelled"
     PSEUDO_CSV          = DATASET_DIR / "pseudo_train.csv"
 
-# Checkpoint del preentrenamiento genérico (input del finetune)
+# Checkpoint from generic pretraining (input for finetune)
 CHECKPOINT_FILE     = BASE_DIR / "checkpoints" / "checkpoint.pth.tar"
 FINETUNE_CHECKPOINT = BASE_DIR / "checkpoints" / "finetune_checkpoint.pth.tar"
 FINETUNE_BEST       = BASE_DIR / "checkpoints" / "finetune_best.pth.tar"
 SSL_BEST            = BASE_DIR / "checkpoints" / "ssl_best.pth.tar"
 
 # ============================================================
-# HIPERPARÁMETROS
+# HYPERPARAMETERS
 # ============================================================
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY  = 1e-4
@@ -75,14 +75,14 @@ NMS_IOU_THRESH  = 0.45
 MAP_IOU_THRESH  = 0.5
 
 # SSL Hyperparams
-SSL_TAU         = 0.9   # Umbral de confianza para pseudo-labels (WBF)
-SSL_LOSS_WEIGHT = 1.0    # Peso relativo de la loss pseudo vs labelled
+SSL_TAU         = 0.9   # Confidence threshold for pseudo-labels (WBF)
+SSL_LOSS_WEIGHT = 1.0    # Relative weight of pseudo loss vs labeled
 
 # ============================================================
-# CLASES
+# CLASSES
 # ============================================================
 
-# Dataset específico (fine-tuning) — 20 clases del supermercado
+# Specific dataset (fine-tuning) — 20 supermarket classes
 specific_class_labels = [
     "coca_cola_bottle", "coca_cola_can", "orange_fanta_bottle", "heineken_can",
     "whole_milk", "semi_skimmed_milk", "skimmed_milk", "banana", "orange",
@@ -98,13 +98,13 @@ SPECIFIC_NUM_CLASSES = len(specific_class_labels)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ============================================================
-# ARQUITECTURA
+# ARCHITECTURE
 # ============================================================
 IMAGE_SIZE = 416
 S = [IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8]  # [13, 26, 52]
 
-# Las tuplas son bloques convolucionales
-# Las listas son bloques residuales CSP
+# Tuples are convolutional blocks
+# Lists are CSP residual blocks
 CONFIG = [
     # --- BACKBONE CSPDarknet53 ---
     (32, 3, 1),                    # 416×416×32
@@ -125,16 +125,16 @@ CONFIG = [
 ]
 
 # ============================================================
-# ANCHORS (COCO, escalados a [0,1])
+# ANCHORS (COCO, scaled to [0,1])
 # ============================================================
 ANCHORS = [
-    [(0.28, 0.22), (0.38, 0.48), (0.9, 0.78)],   # escala 13×13 (objetos grandes)
-    [(0.07, 0.15), (0.15, 0.11), (0.14, 0.29)],  # escala 26×26 (medianos)
-    [(0.02, 0.03), (0.04, 0.07), (0.08, 0.06)],  # escala 52×52 (pequeños)
+    [(0.28, 0.22), (0.38, 0.48), (0.9, 0.78)],   # scale 13×13 (large objects)
+    [(0.07, 0.15), (0.15, 0.11), (0.14, 0.29)],  # scale 26×26 (medium)
+    [(0.02, 0.03), (0.04, 0.07), (0.08, 0.06)],  # scale 52×52 (small)
 ]
 
 # ============================================================
-# TRANSFORMACIONES
+# TRANSFORMATIONS
 # ============================================================
 SCALE = 1.2
 
@@ -151,7 +151,7 @@ train_transforms = A.Compose(
     bbox_params=A.BboxParams(format="yolo", min_visibility=0.4, label_fields=[]),
 )
 
-# Transformaciones de validación/test (sin augmentation)
+# Validation/test transformations (no augmentation)
 test_transforms = A.Compose(
     [
         A.LongestMaxSize(max_size=IMAGE_SIZE),
@@ -162,7 +162,7 @@ test_transforms = A.Compose(
     bbox_params=A.BboxParams(format="yolo", min_visibility=0.4, label_fields=[]),
 )
 
-# Transformaciones agresivas para pseudo-labels (STAC)
+# Aggressive transformations for pseudo-labels (STAC)
 strong_transforms = A.Compose(
     [
         A.SmallestMaxSize(max_size=int(IMAGE_SIZE * SCALE)),

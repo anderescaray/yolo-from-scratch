@@ -1,13 +1,13 @@
 """
-Visualizador de Pseudo-Labels
-==============================
+Pseudo-Labels Visualizer
+=========================
 
-Dibuja las bounding boxes de las pseudo-labels generadas sobre las imágenes
-originales y las guarda en 'pseudo_label_viz/' para inspección visual.
+Draws bounding boxes of generated pseudo-labels on original images
+and saves them in 'pseudo_label_viz/' for visual inspection.
 
-Uso:
+Usage:
     python src/visualize_pseudo_labels.py
-    python src/visualize_pseudo_labels.py --max 30   # limitar a 30 imágenes
+    python src/visualize_pseudo_labels.py --max 30   # limit to 30 images
 """
 
 import sys
@@ -23,7 +23,7 @@ import core.config as config
 
 OUTPUT_DIR = os.path.join(config.BASE_DIR, "pseudo_label_viz")
 
-# Colores BGR distintos por clase
+# Different BGR colors per class
 COLORS = [
     (255, 56,  56),  (255, 157,  151), (255, 112,  31),  (255, 178, 29),
     (207, 210,  49),  (72, 249, 10),   (146, 204, 23),   (61, 219, 134),
@@ -35,8 +35,8 @@ COLORS = [
 
 def draw_boxes(image_np, boxes, class_names):
     """
-    Dibuja bboxes YOLO [class, score, x_center, y_center, w, h] sobre una imagen.
-    boxes: lista de tuplas (cls_id, score, xc, yc, w, h)
+    Draws YOLO bboxes [class, score, x_center, y_center, w, h] on image.
+    boxes: list of tuples (cls_id, score, xc, yc, w, h)
     """
     h, w = image_np.shape[:2]
     img = image_np.copy()
@@ -44,7 +44,7 @@ def draw_boxes(image_np, boxes, class_names):
     for box in boxes:
         cls_id, score, xc, yc, bw, bh = box
 
-        # Convertir de normalizado a píxeles
+        # Convert from normalized to pixels
         x1 = int((xc - bw / 2) * w)
         y1 = int((yc - bh / 2) * h)
         x2 = int((xc + bw / 2) * w)

@@ -2,13 +2,13 @@
 YOLOv4 SSL Training Pipeline
 ==============================
 
-Entrena el modelo YOLOv4 con datos labelled + pseudo-labelled combinados
-según el framework STAC.
+Trains YOLOv4 model with combined labelled + pseudo-labelled data
+according to STAC framework.
 
-Parte del mejor checkpoint del fine-tuning supervisado y continúa
-entrenando con el dataset mixto (labelled + pseudo-labels con strong augmentation).
+Starts from best checkpoint of supervised fine-tuning and continues
+training with mixed dataset (labelled + pseudo-labels with strong augmentation).
 
-Uso:
+Usage:
     python src/ssl_train.py
 """
 
@@ -43,7 +43,7 @@ torch.backends.cudnn.benchmark = True
 
 
 # ============================================================
-# HIPERPARÁMETROS SSL
+# SSL HYPERPARAMETERS
 # ============================================================
 SSL_EPOCHS     = 50
 SSL_LR         = 1e-5
@@ -59,35 +59,35 @@ def main():
     print(f"{'='*60}\n")
 
     # ----------------------------------------------------------
-    # 1. CARGAR MODELO DESDE FINETUNE BEST
+    # 1. LOAD MODEL FROM FINETUNE BEST
     # ----------------------------------------------------------
     model = YOLOv4(num_classes=config.SPECIFIC_NUM_CLASSES).to(config.DEVICE)
 
     weights_path = config.FINETUNE_BEST
     if not os.path.exists(weights_path):
         raise FileNotFoundError(
-            f"No se encontró el checkpoint: {weights_path}\n"
-            "Asegúrate de haber completado el fine-tuning supervisado primero."
+            f"Checkpoint not found: {weights_path}\n"
+            "Make sure you completed supervised fine-tuning first."
         )
 
-    print(f"Cargando pesos desde: {weights_path}")
+    print(f"Loading weights from: {weights_path}")
     checkpoint = torch.load(weights_path, map_location=config.DEVICE)
     model.load_state_dict(checkpoint["state_dict"])
-    print("  ✅ Pesos cargados.\n")
+    print("  ✅ Weights loaded.\n")
 
     # ----------------------------------------------------------
-    # 2. DATALOADERS COMBINADOS
+    # 2. COMBINED DATALOADERS
     # ----------------------------------------------------------
     if not os.path.exists(config.PSEUDO_CSV):
         raise FileNotFoundError(
-            f"No se encontró: {config.PSEUDO_CSV}\n"
-            "Ejecuta primero: python src/pseudo_labeler.py --weights checkpoints/finetune_best.pth.tar"
+            f"Not found: {config.PSEUDO_CSV}\n"
+            "Run first: python src/pseudo_labeler.py --weights checkpoints/finetune_best.pth.tar"
         )
 
     ssl_loader, val_loader = get_ssl_loader()
 
     # ----------------------------------------------------------
-    # 3. COMPONENTES
+    # 3. COMPONENTS
     # ----------------------------------------------------------
     loss_fn = YoloLoss()
     scaler = torch.amp.GradScaler("cuda")
@@ -120,7 +120,7 @@ def main():
     )
 
     # ----------------------------------------------------------
-    # 5. BUCLE DE ENTRENAMIENTO SSL
+    # 5. SSL TRAINING LOOP
     # ----------------------------------------------------------
     print(f"\n{'─'*60}")
     print(f"  SSL Training  ({SSL_EPOCHS} epochs)")

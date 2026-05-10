@@ -1,15 +1,15 @@
 """
-Generador de CSVs para el pipeline YOLOv4
-==========================================
+CSV Generator for YOLOv4 pipeline
+=================================
 
-Genera los archivos CSV (imagen, label) necesarios para los DataLoaders.
-Soporta ambos datasets del proyecto.
+Generates CSV files (image, label) needed for DataLoaders.
+Supports both project datasets.
 
-Uso:
-    python generate_csv.py --dataset generic    # Pre-entrenamiento
+Usage:
+    python generate_csv.py --dataset generic    # Pretraining
     python generate_csv.py --dataset specific   # Fine-tuning
 
-Los CSVs se guardan dentro de la carpeta del dataset correspondiente:
+CSVs are saved inside corresponding dataset folder:
     data/generic_dataset/train.csv, test.csv
     data/yolo_dataset/train.csv, val.csv
 """
@@ -23,8 +23,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 
 def scan_folder(folder_path: str, output_csv: str) -> None:
     """
-    Escanea una carpeta buscando pares (imagen, .txt) y genera un CSV.
-    Solo incluye imágenes que tienen su .txt correspondiente y que no está vacío.
+    Scans folder looking for (image, .txt) pairs and generates CSV.
+    Only includes images with corresponding .txt file that is not empty.
     """
     if not os.path.exists(folder_path):
         print(f"ERROR: La carpeta '{folder_path}' no existe.")
@@ -46,7 +46,7 @@ def scan_folder(folder_path: str, output_csv: str) -> None:
             skipped_no_label += 1
             continue
 
-        # Saltamos labels vacíos (imágenes sin anotaciones)
+        # Skip empty labels (images without annotations)
         if os.path.getsize(label_path) == 0:
             skipped_empty += 1
             continue
@@ -56,15 +56,15 @@ def scan_folder(folder_path: str, output_csv: str) -> None:
     if data:
         df = pd.DataFrame(data, columns=["img", "label"])
         df.to_csv(output_csv, index=False)
-        print(f"  ✅ {output_csv}  →  {len(data)} pares  "
-              f"(sin label: {skipped_no_label}, label vacío: {skipped_empty})")
+        print(f"  ✅ {output_csv}  →  {len(data)} pairs  "
+              f"(no label: {skipped_no_label}, empty label: {skipped_empty})")
     else:
-        print(f"  ⚠️  {folder_path} no contiene pares imagen+label válidos.")
+        print(f"  ⚠️  {folder_path} contains no valid image+label pairs.")
 
 
 def generate_generic() -> None:
-    """Genera los CSVs del dataset genérico de preentrenamiento."""
-    print("Generando CSVs del dataset genérico...")
+    """Generates CSVs for generic pretraining dataset."""
+    print("Generating CSVs for generic dataset...")
     dataset_dir = os.path.join(BASE_DIR, "data", "generic_dataset")
 
     scan_folder(
