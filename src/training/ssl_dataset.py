@@ -1,13 +1,13 @@
 """
-SSL Dataset — Combina datos etiquetados y pseudo-etiquetados
-=============================================================
+SSL Dataset — Combines labeled and pseudo-labeled data
+======================================================
 
-Crea un ConcatDataset que mezcla:
-  1. Dataset labelled   → usa train_transforms (augmentación estándar)
-  2. Dataset pseudo     → usa strong_transforms (augmentación agresiva STAC)
+Creates a ConcatDataset that mixes:
+  1. Labeled dataset   → uses train_transforms (standard augmentation)
+  2. Pseudo dataset    → uses strong_transforms (aggressive STAC augmentation)
 
-Cada batch contiene samples de ambos orígenes mezclados aleatoriamente
-para evitar catastrophic forgetting.
+Each batch contains samples from both sources mixed randomly
+to prevent catastrophic forgetting.
 """
 
 import sys
@@ -21,17 +21,17 @@ from torch.utils.data import ConcatDataset, DataLoader
 
 def get_ssl_loader():
     """
-    Construye un DataLoader combinado labelled + pseudo-labelled.
+    Builds a combined labeled + pseudo-labeled DataLoader.
 
     Returns:
-        ssl_loader: DataLoader mezclado
-        val_loader: DataLoader de validación (sin cambios)
+        ssl_loader: Mixed DataLoader
+        val_loader: Validation DataLoader (unchanged)
     """
     IMAGE_SIZE = config.IMAGE_SIZE
     S = [IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8]
     num_classes = config.SPECIFIC_NUM_CLASSES
 
-    # --- Dataset 1: Labelled (augmentación estándar) ---
+    # --- Dataset 1: Labeled (standard augmentation) ---
     labelled_dataset = YOLODataset(
         csv_file=config.TRAIN_CSV,
         transform=config.train_transforms,
@@ -42,18 +42,18 @@ def get_ssl_loader():
         C=num_classes,
     )
 
-    # --- Dataset 2: Pseudo-labelled (augmentación agresiva STAC) ---
+    # --- Dataset 2: Pseudo-labeled (aggressive STAC augmentation) ---
     pseudo_dataset = YOLODataset(
         csv_file=config.PSEUDO_CSV,
         transform=config.strong_transforms,
         S=S,
-        img_dir=config.UNLABELLED_IMG_DIR,    # imágenes originales sin etiquetar
-        label_dir=config.PSEUDO_LABEL_DIR,     # pseudo-labels generadas
+        img_dir=config.UNLABELLED_IMG_DIR,    # original unlabeled images
+        label_dir=config.PSEUDO_LABEL_DIR,    # generated pseudo-labels
         anchors=config.ANCHORS,
         C=num_classes,
     )
 
-    # --- Concatenar ambos datasets ---
+    # --- Concatenate both datasets ---
     combined_dataset = ConcatDataset([labelled_dataset, pseudo_dataset])
 
     ssl_loader = DataLoader(
@@ -61,12 +61,12 @@ def get_ssl_loader():
         batch_size=config.BATCH_SIZE,
         num_workers=config.NUM_WORKERS,
         pin_memory=config.PIN_MEMORY,
-        shuffle=True,           # Mezcla labelled + pseudo en cada epoch
+        shuffle=True,           # Mix labeled + pseudo in each epoch
         drop_last=False,
         persistent_workers=True if config.NUM_WORKERS > 0 else False,
     )
 
-    # --- Validación (solo labelled, sin cambios) ---
+    # --- Validation (labeled only, unchanged) ---
     val_dataset = YOLODataset(
         csv_file=config.VAL_CSV,
         transform=config.test_transforms,
@@ -88,9 +88,9 @@ def get_ssl_loader():
     )
 
     print(f"  SSL DataLoader:")
-    print(f"    Labelled:       {len(labelled_dataset)} imgs")
-    print(f"    Pseudo-labelled: {len(pseudo_dataset)} imgs")
-    print(f"    Total combinado: {len(combined_dataset)} imgs")
-    print(f"    Validación:      {len(val_dataset)} imgs")
+    print(f"    Labeled:         {len(labelled_dataset)} imgs")
+    print(f"    Pseudo-labeled:  {len(pseudo_dataset)} imgs")
+    print(f"    Total combined:  {len(combined_dataset)} imgs")
+    print(f"    Validation:      {len(val_dataset)} imgs")
 
     return ssl_loader, val_loader

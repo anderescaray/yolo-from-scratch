@@ -1,16 +1,16 @@
 """
-Funciones de utilidad para YOLOv4
+Utility functions for YOLOv4
 ============================
 
-Colección de funciones auxiliares matemáticas y de procesamiento de tensores
-necesarias para el entrenamiento y la inferencia.
+Collection of auxiliary mathematical and tensor processing functions
+necessary for training and inference.
 
-Funciones incluidas:
-    - iou_width_height: Calcula la Intersección sobre Unión asumiendo centros alineados
-      (usado exclusivamente para elegir Anchor Boxes en dataset.py).
-    - intersection_over_union (IoU): IoU estándar para evaluación.
-    - non_max_suppression (NMS): Para limpiar detecciones duplicadas.
-    - mean_average_precision (mAP): Métrica principal de evaluación.
+Included functions:
+    - iou_width_height: Calculates Intersection over Union assuming aligned centers
+      (used exclusively for choosing Anchor Boxes in dataset.py).
+    - intersection_over_union (IoU): Standard IoU for evaluation.
+    - non_max_suppression (NMS): To clean duplicate detections.
+    - mean_average_precision (mAP): Main evaluation metric.
 """
 
 import core.config as config
@@ -26,10 +26,10 @@ from tqdm import tqdm
 
 def iou_width_height(boxes1, boxes2):
     """
-    Calcula la Intersección sobre Unión (IoU) basándose SOLO en ancho y alto
-    Se usa para elegir qué Anchor Box se parece más a la caja de verdad
-    Parámetros:
-        boxes1: Tensor (N, 2) -> (ancho, alto)
+    Calculates Intersection over Union (IoU) based ONLY on width and height.
+    Used to choose which Anchor Box best matches the actual box.
+    Parameters:
+        boxes1: Tensor (N, 2) -> (width, height)
         boxes2: Tensor (M, 2)
     """
     intersection = torch.min(boxes1[..., 0], boxes2[..., 0]) * torch.min(
@@ -264,7 +264,7 @@ def plot_image(image, boxes):
         upper_left_x = box[0] - box[2] / 2
         upper_left_y = box[1] - box[3] / 2
         
-        # Aseguramos que el índice sea entero para evitar errores
+        # Ensure index is integer to avoid errors
         rect = patches.Rectangle(
             (upper_left_x * width, upper_left_y * height),
             box[2] * width,
@@ -277,7 +277,7 @@ def plot_image(image, boxes):
         plt.text(
             upper_left_x * width,
             upper_left_y * height,
-            s=class_labels[int(class_pred)], # para poner el nombre correcto
+            s=class_labels[int(class_pred)], # to display correct name
             color="white",
             verticalalignment="top",
             bbox={"color": colors[int(class_pred)], "pad": 0},
@@ -414,7 +414,7 @@ def check_class_accuracy(model, loader, threshold):
     print(f"No obj accuracy is: {(correct_noobj/(tot_noobj+1e-16))*100:2f}%")
     print(f"Obj accuracy is: {(correct_obj/(tot_obj+1e-16))*100:2f}%")
     model.train()
-    # Devolvemos los valores para poder loguearlos en wandb
+    # Return values to log in wandb
     return (
         (correct_class/(tot_class_preds+1e-16)).item() * 100,
         (correct_noobj/(tot_noobj+1e-16)).item() * 100,
@@ -467,11 +467,10 @@ def get_loaders(
     val_label_dir=None,
 ):
     """
-    Crea y devuelve los DataLoaders de entrenamiento, validación y train-eval.
+    Creates and returns DataLoaders for training, validation and train-eval.
 
-    Los directorios de imagen y label tienen como valor por defecto los del
-    config activo (DATASET_TYPE), pero se pueden sobreescribir explícitamente
-    para usar rutas distintas (p.ej. en finetune.py).
+    Image and label directories default to active config (DATASET_TYPE),
+    but can be explicitly overridden to use different paths (e.g. in finetune.py).
     """
     from core.dataset import YOLODataset
 
@@ -524,7 +523,7 @@ def get_loaders(
         drop_last=False,
     )
 
-    # Para evaluar mAP sobre train sin augmentation
+    # To evaluate mAP on train without augmentation
     train_eval_dataset = YOLODataset(
         train_csv_path,
         transform=config.test_transforms,
@@ -553,11 +552,11 @@ def plot_couple_examples(model, loader, thresh, iou_thresh, anchors, labels):
     with torch.no_grad():
         out = model(x)
         bboxes = [[] for _ in range(x.shape[0])]
-        
-        # las cajas predichas por el modelo
+
+        # boxes predicted by model
         for i in range(3):
             batch_size, A, S, _, _ = out[i].shape
-            # para que se pueda hacer reshape hay que pasar la lista a tensor
+            # to reshape we need to convert list to tensor
             anchor = torch.tensor(anchors[i]).to(x.device) * S
             boxes_scale_i = cells_to_bboxes(
                 out[i], anchor, S=S, is_preds=True
@@ -567,37 +566,37 @@ def plot_couple_examples(model, loader, thresh, iou_thresh, anchors, labels):
 
         model.train()
 
-    for i in range(min(3, x.shape[0])): 
+    for i in range(min(3, x.shape[0])):
         nms_boxes = non_max_suppression(
             bboxes[i], iou_threshold=iou_thresh, threshold=thresh, box_format="midpoint",
         )
-        
-        # Preparamos la imagen para pintar
+
+        # Prepare image for drawing
         image = x[i].permute(1, 2, 0).detach().cpu().numpy()
-        image = np.ascontiguousarray(image) 
-        
+        image = np.ascontiguousarray(image)
+
         save_prediction_image(image, nms_boxes, index=i, labels=labels)
 
 def save_prediction_image(image, boxes, index, labels):
-    """Guarda la imagen con las cajas dibujadas en lugar de mostrarla"""
+    """Saves image with drawn boxes instead of displaying it"""
     cmap = plt.get_cmap("tab20b")
     class_labels = labels
     colors = [cmap(i) for i in np.linspace(0, 1, len(class_labels))]
-    
+
     height, width, _ = image.shape
-    
-    # Crear figura sin mostrarla
+
+    # Create figure without displaying it
     fig, ax = plt.subplots(1)
     ax.imshow(image)
-    
+
     for box in boxes:
         class_pred = int(box[0])
         conf = box[1]
         box = box[2:]
-        
+
         upper_left_x = box[0] - box[2] / 2
         upper_left_y = box[1] - box[3] / 2
-        
+
         rect = patches.Rectangle(
             (upper_left_x * width, upper_left_y * height),
             box[2] * width,
@@ -607,7 +606,7 @@ def save_prediction_image(image, boxes, index, labels):
             facecolor="none",
         )
         ax.add_patch(rect)
-        
+
         plt.text(
             upper_left_x * width,
             upper_left_y * height,
@@ -616,11 +615,11 @@ def save_prediction_image(image, boxes, index, labels):
             verticalalignment="top",
             bbox={"color": colors[class_pred], "pad": 0},
         )
-    
-    filename = config.BASE_DIR / "saved_images" / f"prediccion_test_{index}.png"
+
+    filename = config.BASE_DIR / "saved_images" / f"prediction_test_{index}.png"
     plt.savefig(filename)
-    plt.close() 
-    print(f"Imagen guardada: {filename}")
+    plt.close()
+    print(f"Image saved: {filename}")
 
 
 

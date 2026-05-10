@@ -2,24 +2,24 @@
 YOLOv4 Fine-Tuning Pipeline
 ============================
 
-Carga el modelo preentrenado con el dataset genérico y lo adapta al dataset
-específico del supermercado (20 clases) mediante un proceso de 2 fases:
+Loads model pretrained with generic dataset and adapts it to specific
+supermarket dataset (20 classes) through a 2-phase process:
 
-    Fase 1 — Solo cabezas   (backbone + SPP + neck congelados)
-    ─────────────────────────────────────────────────────────
-    • Objetivo: estabilizar las cabezas nuevas (pesos aleatorios)
-    • LR alto (1e-4) porque no hay riesgo de destruir el backbone congelado
-    • Sin scheduler: los gradientes son caóticos al principio
+    Phase 1 — Heads only   (backbone + SPP + neck frozen)
+    ─────────────────────────────────────────────────────
+    • Goal: stabilize new heads (random weights)
+    • High LR (1e-4) because no risk of destroying frozen backbone
+    • No scheduler: gradients are chaotic at first
 
-    Fase 2 — Neck + SPP + cabezas   (backbone sigue congelado)
-    ─────────────────────────────────────────────────────────
-    • Objetivo: afinar neck y SPP con las clases nuevas
-    • LR bajo (1e-5) + CosineAnnealingLR para descenso suave
-    • Early stopping: guarda el mejor checkpoint si mejora val_loss
-    • Evalúa mAP cada MAP_EVAL_FREQ epochs
+    Phase 2 — Neck + SPP + heads   (backbone still frozen)
+    ─────────────────────────────────────────────────────
+    • Goal: fine-tune neck and SPP with new classes
+    • Low LR (1e-5) + CosineAnnealingLR for smooth descent
+    • Early stopping: saves best checkpoint if val_loss improves
+    • Evaluates mAP every MAP_EVAL_FREQ epochs
 
-El backbone permanece congelado durante todo el fine-tuning para preservar
-las features visuales aprendidas del dataset genérico.
+Backbone remains frozen throughout fine-tuning to preserve
+visual features learned from generic dataset.
 """
 
 import sys
@@ -53,23 +53,23 @@ torch.backends.cudnn.benchmark = True
 
 
 # ============================================================
-# HIPERPARÁMETROS DE FINE-TUNING
+# FINE-TUNING HYPERPARAMETERS
 # ============================================================
-FASE1_EPOCHS   = 15       # Solo cabezas
-FASE2_EPOCHS   = 100      # Neck + SPP + cabezas
-LR_FASE1       = 1e-4     # Más alto: cabezas parten de pesos aleatorios
-LR_FASE2       = 5e-6     # Más bajo: afinar sin destruir lo aprendido
-MAP_EVAL_FREQ  = 5        # Evaluar mAP cada N epochs en fase 2
-PATIENCE       = 15       # Early stopping: epochs sin mejora en val_loss
-FASE3_EPOCHS   = 30       # Descongelación total
-LR_FASE3       = 1e-6     # Muy bajo para no romper el backbone
+FASE1_EPOCHS   = 15       # Heads only
+FASE2_EPOCHS   = 100      # Neck + SPP + heads
+LR_FASE1       = 1e-4     # Higher: heads start from random weights
+LR_FASE2       = 5e-6     # Lower: fine-tune without destroying learning
+MAP_EVAL_FREQ  = 5        # Evaluate mAP every N epochs in phase 2
+PATIENCE       = 15       # Early stopping: epochs without val_loss improvement
+FASE3_EPOCHS   = 30       # Full unfreezing
+LR_FASE3       = 1e-6     # Very low to not break backbone
 
 # ============================================================
-# HELPERS DE CONGELACIÓN
+# FREEZING HELPERS
 # ============================================================
 
 def freeze_all_except_heads(model: nn.Module) -> None:
-    """Congela backbone, SPP y neck. Solo las cabezas quedan entrenables."""
+    """Freezes backbone, SPP and neck. Only heads remain trainable."""
     for param in model.backbone.parameters():
         param.requires_grad = False
     for param in model.spp.parameters():
@@ -77,25 +77,25 @@ def freeze_all_except_heads(model: nn.Module) -> None:
     for param in model.neck.parameters():
         param.requires_grad = False
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"  Parámetros entrenables (solo cabezas): {trainable:,}")
+    print(f"  Trainable parameters (heads only): {trainable:,}")
 
 
 def unfreeze_neck_and_spp(model: nn.Module) -> None:
-    """Descongela neck y SPP para Fase 2. Backbone sigue congelado."""
+    """Unfreezes neck and SPP for Phase 2. Backbone still frozen."""
     for param in model.spp.parameters():
         param.requires_grad = True
     for param in model.neck.parameters():
         param.requires_grad = True
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"  Parámetros entrenables (neck + SPP + cabezas): {trainable:,}")
+    print(f"  Trainable parameters (neck + SPP + heads): {trainable:,}")
 
 
 def unfreeze_all(model: nn.Module) -> None:
-    """Descongela el backbone para el ajuste fino final."""
+    """Unfreezes backbone for final fine-tuning."""
     for param in model.backbone.parameters():
         param.requires_grad = True
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"  Parámetros entrenables (TODO EL MODELO): {trainable:,}")
+    print(f"  Trainable parameters (ENTIRE MODEL): {trainable:,}")
 
 # ============================================================
 # MAIN
@@ -104,28 +104,28 @@ def unfreeze_all(model: nn.Module) -> None:
 def main():
     print(f"\n{'='*60}")
     print(f"  YOLOv4 Fine-Tuning  |  device: {config.DEVICE}")
-    print(f"  Dataset: data/yolo_dataset  |  Clases: {config.GENERIC_NUM_CLASSES} → {config.SPECIFIC_NUM_CLASSES}")
+    print(f"  Dataset: data/yolo_dataset  |  Classes: {config.GENERIC_NUM_CLASSES} → {config.SPECIFIC_NUM_CLASSES}")
     print(f"{'='*60}\n")
 
     # ----------------------------------------------------------
-    # 1. CARGAR MODELO CON ARQUITECTURA DEL PREENTRENAMIENTO
+    # 1. LOAD MODEL WITH PRETRAINING ARCHITECTURE
     # ----------------------------------------------------------
     model = YOLOv4(num_classes=config.GENERIC_NUM_CLASSES).to(config.DEVICE)
 
-    print("Cargando pesos preentrenados del dataset genérico...")
+    print("Loading pretrained weights from generic dataset...")
     if not os.path.exists(config.CHECKPOINT_FILE):
         raise FileNotFoundError(
-            f"No se encontró el checkpoint: {config.CHECKPOINT_FILE}\n"
-            "Asegúrate de haber entrenado primero con el dataset genérico."
+            f"Checkpoint not found: {config.CHECKPOINT_FILE}\n"
+            "Make sure you trained first with the generic dataset."
         )
     checkpoint = torch.load(config.CHECKPOINT_FILE, map_location=config.DEVICE)
     model.load_state_dict(checkpoint["state_dict"])
-    print("  ✅ Pesos cargados con éxito.\n")
+    print("  ✅ Weights loaded successfully.\n")
 
     # ----------------------------------------------------------
-    # 2. REEMPLAZAR CABEZAS DE DETECCIÓN (85 → 20 clases)
+    # 2. REPLACE DETECTION HEADS (85 → 20 classes)
     # ----------------------------------------------------------
-    print(f"Reemplazando cabezas: {config.GENERIC_NUM_CLASSES} → {config.SPECIFIC_NUM_CLASSES} clases...")
+    print(f"Replacing heads: {config.GENERIC_NUM_CLASSES} → {config.SPECIFIC_NUM_CLASSES} classes...")
     model.head_large  = ScalePrediction(256, config.SPECIFIC_NUM_CLASSES).to(config.DEVICE)
     model.head_medium = ScalePrediction(256, config.SPECIFIC_NUM_CLASSES).to(config.DEVICE)
     model.head_small  = ScalePrediction(128, config.SPECIFIC_NUM_CLASSES).to(config.DEVICE)
@@ -133,16 +133,16 @@ def main():
     initialize_weights(model.head_large)
     initialize_weights(model.head_medium)
     initialize_weights(model.head_small)
-    print("  ✅ Cabezas inicializadas.\n")
+    print("  ✅ Heads initialized.\n")
 
     # ----------------------------------------------------------
-    # 3. DATALOADERS DEL DATASET ESPECÍFICO
+    # 3. DATALOADERS FOR SPECIFIC DATASET
     # ----------------------------------------------------------
-    # Verificamos que los CSVs existan; si no, los generamos
+    # Check if CSVs exist; if not, generate them
     for csv_path in (config.TRAIN_CSV, config.VAL_CSV):
         if not os.path.exists(csv_path):
-            print(f"CSV no encontrado: {csv_path}")
-            print("Ejecuta primero: python generate_csv.py --dataset specific")
+            print(f"CSV not found: {csv_path}")
+            print("Run first: python generate_csv.py --dataset specific")
             raise FileNotFoundError(csv_path)
 
     train_loader, val_loader, _ = get_loaders(
