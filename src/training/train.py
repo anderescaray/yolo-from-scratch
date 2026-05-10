@@ -15,6 +15,10 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import core.config as config
+<<<<<<< HEAD
+=======
+
+>>>>>>> 4883e0d (fix: Move DATASET_TYPE assertion inside main() function)
 import torch
 import torch.optim as optim
 from core.model import YOLOv4
@@ -151,6 +155,12 @@ def val_fn(val_loader, model, loss_fn, scaled_anchors):
 
 def main():
     """Main configuration function and epoch loop"""
+
+    # train.py always operates on the generic dataset.
+    assert config.DATASET_TYPE == "generic", (
+        "train.py requires DATASET_TYPE='generic' in config.py. "
+        f"Current value: '{config.DATASET_TYPE}'."
+    )
 
     # Initialize wandb
     # view results at https://wandb.ai
