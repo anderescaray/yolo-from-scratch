@@ -14,7 +14,7 @@ Usage:
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import torch
 import torch.optim as optim
@@ -55,7 +55,7 @@ def main():
     print(f"\n{'='*60}")
     print(f"  YOLOv4 SSL Training (STAC)")
     print(f"  Device: {config.DEVICE}")
-    print(f"  Clases: {config.SPECIFIC_NUM_CLASSES}")
+    print(f"  Classes: {config.SPECIFIC_NUM_CLASSES}")
     print(f"{'='*60}\n")
 
     # ----------------------------------------------------------
@@ -73,6 +73,7 @@ def main():
     print(f"Loading weights from: {weights_path}")
     checkpoint = torch.load(weights_path, map_location=config.DEVICE)
     model.load_state_dict(checkpoint["state_dict"])
+    model.train()
     print("  ✅ Weights loaded.\n")
 
     # ----------------------------------------------------------
@@ -149,12 +150,12 @@ def main():
             best_val_loss = val_loss
             epochs_no_improve = 0
             save_checkpoint(model, optimizer, filename=config.SSL_BEST)
-            print(f"  ✅ Mejor val_loss: {best_val_loss:.4f}")
+            print(f"  ✅ Best val_loss: {best_val_loss:.4f}")
         else:
             epochs_no_improve += 1
-            print(f"  ⏳ Sin mejora: {epochs_no_improve}/{PATIENCE}")
+            print(f"  ⏳ No improvement: {epochs_no_improve}/{PATIENCE}")
 
-        # mAP cada N epochs
+        # mAP every N epochs
         if (epoch + 1) % MAP_EVAL_FREQ == 0:
             class_acc, noobj_acc, obj_acc = check_class_accuracy(
                 model, val_loader, threshold=config.CONF_THRESHOLD
@@ -187,13 +188,13 @@ def main():
 
         # Early stopping
         if epochs_no_improve >= PATIENCE:
-            print(f"\n  Early stopping activado tras {PATIENCE} epochs sin mejora.")
+            print(f"\n  Early stopping triggered after {PATIENCE} epochs without improvement.")
             break
 
     print(f"\n{'='*60}")
-    print(f"  SSL Training completado.")
-    print(f"  Mejor val_loss: {best_val_loss:.4f}")
-    print(f"  Checkpoint guardado en: {config.SSL_BEST}")
+    print(f"  SSL Training complete.")
+    print(f"  Best val_loss: {best_val_loss:.4f}")
+    print(f"  Checkpoint saved at: {config.SSL_BEST}")
     print(f"{'='*60}\n")
 
     wandb.finish()

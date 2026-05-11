@@ -14,7 +14,7 @@ Output:
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import argparse
 import csv
@@ -27,7 +27,7 @@ from albumentations.pytorch import ToTensorV2
 
 import core.config as config
 from core.model import YOLOv4
-from core.utils import cells_to_bboxes, non_max_suppression
+from core.utils import cells_to_bboxes
 
 
 # ============================================================
@@ -148,7 +148,7 @@ def flip_boxes_horizontal(boxes):
     return flipped    
 
 def get_eval_transform(new_size):
-    """Crea una transformación dinámica al tamaño requerido para las distintas escalas."""
+    """Creates a dynamic resize+normalize transform for the given input size."""
     return A.Compose([
         A.Resize(height=new_size, width=new_size),
         A.Normalize(mean=[0, 0, 0], std=[1, 1, 1], max_pixel_value=255),
@@ -157,49 +157,49 @@ def get_eval_transform(new_size):
 
 def predict_with_tta(model, image_np, anchors, device, conf_threshold=0.3):
     """
-    Genera predicciones con Multi-Scale Test-Time Augmentation (4 pasadas).
-    Evalúa la imagen en diferentes condiciones para maximizar la robustez:
+    Generates predictions with Multi-Scale Test-Time Augmentation (4 passes).
+    Evaluates the image under different conditions to maximize robustness:
       1. Original (1.0x)
-      2. Horizontal Flip (Espejo)
+      2. Horizontal Flip (mirror)
       3. Scale Up (~1.25x)
       4. Scale Down (~0.75x)
 
     Args:
-        model: modelo YOLOv4 en eval()
-        image_np: imagen numpy HxWxC (0-255)
+        model: YOLOv4 model in eval() mode
+        image_np: numpy image HxWxC (0-255)
         anchors: config.ANCHORS
         device: cuda/cpu
-        conf_threshold: umbral mínimo para pre-filtrar cajas basura
+        conf_threshold: minimum threshold to pre-filter low-quality boxes
 
     Returns:
-        Lista con 4 sub-listas de predicciones: 
+        List of 4 sub-lists of predictions:
         [boxes_original, boxes_flipped_corrected, boxes_scale_up, boxes_scale_down]
     """
     base_size = config.IMAGE_SIZE
-    # YOLO requiere que las dimensiones de entrada sean múltiplos de 32
+    # YOLO input dimensions must be multiples of 32
     size_up = int(base_size * 1.25) // 32 * 32
     size_down = int(base_size * 0.75) // 32 * 32
 
-    # --- Pasada 1: Original ---
+    # --- Pass 1: Original ---
     t_orig = get_eval_transform(base_size)
     img_orig = t_orig(image=image_np)["image"]
     boxes_orig = decode_predictions(model, img_orig, anchors, device)
     boxes_orig = [b for b in boxes_orig if b[1] > conf_threshold]
 
-    # --- Pasada 2: Horizontal Flip ---
+    # --- Pass 2: Horizontal Flip ---
     image_flipped = np.fliplr(image_np).copy()
     img_flip = t_orig(image=image_flipped)["image"]
     boxes_flip = decode_predictions(model, img_flip, anchors, device)
     boxes_flip = [b for b in boxes_flip if b[1] > conf_threshold]
-    boxes_flip = flip_boxes_horizontal(boxes_flip) # Deshacer el flip
+    boxes_flip = flip_boxes_horizontal(boxes_flip)  # undo the flip
 
-    # --- Pasada 3: Scale Up ---
+    # --- Pass 3: Scale Up ---
     t_up = get_eval_transform(size_up)
     img_up = t_up(image=image_np)["image"]
     boxes_up = decode_predictions(model, img_up, anchors, device)
     boxes_up = [b for b in boxes_up if b[1] > conf_threshold]
 
-    # --- Pasada 4: Scale Down ---
+    # --- Pass 4: Scale Down ---
     t_down = get_eval_transform(size_down)
     img_down = t_down(image=image_np)["image"]
     boxes_down = decode_predictions(model, img_down, anchors, device)
@@ -213,18 +213,18 @@ def predict_with_tta(model, image_np, anchors, device, conf_threshold=0.3):
 # ============================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Generar pseudo-labels con TTA + WBF")
+    parser = argparse.ArgumentParser(description="Generate pseudo-labels with TTA + WBF")
     parser.add_argument("--weights", type=str, required=True,
-                        help="Ruta al checkpoint .pth.tar (ej: checkpoints/finetune_best.pth.tar)")
+                        help="Path to .pth.tar checkpoint (e.g. checkpoints/finetune_best.pth.tar)")
     parser.add_argument("--tau", type=float, default=config.SSL_TAU,
-                        help=f"Umbral de confianza para pseudo-labels (default: {config.SSL_TAU})")
+                        help=f"Confidence threshold for pseudo-labels (default: {config.SSL_TAU})")
     parser.add_argument("--iou-wbf", type=float, default=0.55,
-                        help="Umbral IoU para WBF (default: 0.55)")
+                        help="IoU threshold for WBF (default: 0.55)")
     args = parser.parse_args()
 
     print(f"\n{'='*60}")
     print(f"  PSEUDO-LABEL GENERATOR (TTA + WBF)")
-    # Resolver el path del checkpoint relativo a la raíz del proyecto
+    # Resolve checkpoint path relative to project root
     weights_path = args.weights
     if not os.path.isabs(weights_path):
         weights_path = os.path.join(config.BASE_DIR, weights_path)
@@ -233,45 +233,45 @@ def main():
     print(f"  Tau: {args.tau}  |  IoU WBF: {args.iou_wbf}")
     print(f"{'='*60}\n")
 
-    # ------- Cargar modelo -------
+    # ------- Load model -------
     model = YOLOv4(num_classes=config.SPECIFIC_NUM_CLASSES).to(config.DEVICE)
     checkpoint = torch.load(weights_path, map_location=config.DEVICE, weights_only=False)
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
-    print("  ✅ Modelo cargado.\n")
+    print("  ✅ Model loaded.\n")
 
-    # ------- Encontrar imágenes sin etiquetar -------
+    # ------- Find unlabeled images -------
     unlabelled_dir = config.UNLABELLED_IMG_DIR
     valid_ext = {".jpg", ".jpeg", ".png", ".bmp"}
     image_files = sorted([
         f for f in os.listdir(unlabelled_dir)
         if os.path.splitext(f)[1].lower() in valid_ext
     ])
-    print(f"  Imágenes sin etiquetar encontradas: {len(image_files)}")
+    print(f"  Unlabeled images found: {len(image_files)}")
 
     if len(image_files) == 0:
-        print("  ⚠️  No hay imágenes en UNLABELLED_IMG_DIR. Abortando.")
+        print("  ⚠️  No images found in UNLABELLED_IMG_DIR. Aborting.")
         return
 
-    # ------- Crear directorio de salida -------
+    # ------- Create output directory -------
     output_dir = config.PSEUDO_LABEL_DIR
     os.makedirs(output_dir, exist_ok=True)
 
-    # ------- Procesar cada imagen -------
+    # ------- Process each image -------
     csv_rows = []
     total_labels = 0
     skipped = 0
 
-    for img_name in tqdm(image_files, desc="Generando pseudo-labels"):
+    for img_name in tqdm(image_files, desc="Generating pseudo-labels"):
         img_path = os.path.join(unlabelled_dir, img_name)
         image_np = np.array(Image.open(img_path).convert("RGB"))
 
-        # TTA: obtener cajas de las 4 pasadas (Multi-Scale + H-Flip)
+        # TTA: get boxes from 4 passes (Multi-Scale + H-Flip)
         tta_boxes_list = predict_with_tta(
             model, image_np, config.ANCHORS, config.DEVICE
         )
 
-        # WBF: fusionar la lista de listas
+        # WBF: fuse the list of lists
         fused = weighted_boxes_fusion(
             tta_boxes_list,
             iou_threshold=args.iou_wbf,
@@ -284,7 +284,7 @@ def main():
             skipped += 1
             continue
 
-        # Guardar como .txt YOLO
+        # Save as YOLO .txt
         label_name = os.path.splitext(img_name)[0] + ".txt"
         label_path = os.path.join(output_dir, label_name)
 
@@ -293,14 +293,14 @@ def main():
                 cls_id = int(box[0])
                 x, y, w, h = box[2], box[3], box[4], box[5]
 
-                # Convertir a esquinas, clampear a [0,1] y reconvertir a centro
-                # Esto es lo único que garantiza que y_center + h/2 <= 1.0
+                # Convert to corners, clamp to [0,1], then back to center format
+                # This is the only way to guarantee y_center + h/2 <= 1.0
                 x1 = max(0.0, x - w / 2)
                 y1 = max(0.0, y - h / 2)
                 x2 = min(1.0, x + w / 2)
                 y2 = min(1.0, y + h / 2)
 
-                # Descartar cajas degeneradas tras el clamp
+                # Discard degenerate boxes after clamping
                 if x2 <= x1 or y2 <= y1:
                     continue
 
@@ -314,22 +314,22 @@ def main():
         total_labels += len(confident_boxes)
         csv_rows.append([img_name, label_name])
 
-    # ------- Generar CSV -------
+    # ------- Generate CSV -------
     csv_path = config.PSEUDO_CSV
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
         for row in csv_rows:
             writer.writerow(row)
 
-    # ------- Resumen -------
+    # ------- Summary -------
     print(f"\n{'='*60}")
-    print(f"  RESUMEN")
-    print(f"  Imágenes procesadas:  {len(image_files)}")
-    print(f"  Imágenes con labels:  {len(csv_rows)}")
-    print(f"  Imágenes descartadas: {skipped}")
+    print(f"  SUMMARY")
+    print(f"  Images processed:     {len(image_files)}")
+    print(f"  Images with labels:   {len(csv_rows)}")
+    print(f"  Images skipped:       {skipped}")
     print(f"  Total pseudo-labels:  {total_labels}")
-    print(f"  Labels guardadas en:  {output_dir}")
-    print(f"  CSV generado en:      {csv_path}")
+    print(f"  Labels saved at:      {output_dir}")
+    print(f"  CSV generated at:     {csv_path}")
     print(f"{'='*60}\n")
 
 

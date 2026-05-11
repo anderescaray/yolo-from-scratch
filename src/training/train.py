@@ -12,16 +12,9 @@ Calculates mAP (Mean Average Precision) periodically.
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import core.config as config
-
-# train.py always operates on the generic dataset.
-assert config.DATASET_TYPE == "generic", (
-    "train.py requires DATASET_TYPE='generic' in config.py. "
-    f"Current value: '{config.DATASET_TYPE}'."
-)
-
 import torch
 import torch.optim as optim
 from core.model import YOLOv4
@@ -267,5 +260,10 @@ def main():
     wandb.finish()
 
 if __name__ == "__main__":
+    # train.py opera siempre sobre el dataset genérico.
+    assert config.DATASET_TYPE == "generic", (
+        "train.py requiere DATASET_TYPE='generic' en config.py. "
+        f"Valor actual: '{config.DATASET_TYPE}'."
+    )
     print(f"Using device: {config.DEVICE}")
     main()
