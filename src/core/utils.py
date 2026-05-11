@@ -360,13 +360,15 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
     """
     BATCH_SIZE = predictions.shape[0]
     num_anchors = len(anchors)
-    box_predictions = predictions[..., 1:5]
+    box_predictions = predictions[..., 1:5].clone()
     if is_preds:
         anchors = anchors.reshape(1, len(anchors), 1, 1, 2)
         box_predictions[..., 0:2] = torch.sigmoid(box_predictions[..., 0:2])
         box_predictions[..., 2:] = torch.exp(box_predictions[..., 2:]) * anchors
-        scores = torch.sigmoid(predictions[..., 0:1])
-        best_class = torch.argmax(predictions[..., 5:], dim=-1).unsqueeze(-1)
+        obj_prob = torch.sigmoid(predictions[..., 0:1])
+        class_probs = torch.softmax(predictions[..., 5:], dim=-1)
+        best_class_prob, best_class = class_probs.max(dim=-1, keepdim=True)
+        scores = obj_prob * best_class_prob
     else:
         scores = predictions[..., 0:1]
         best_class = predictions[..., 5:6]

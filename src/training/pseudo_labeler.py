@@ -114,6 +114,23 @@ def weighted_boxes_fusion(boxes_list, iou_threshold=0.55):
     return fused_boxes
 
 
+def class_agnostic_nms(boxes: list, iou_threshold: float = 0.5) -> list:
+    """
+    Removes duplicate boxes that point to the same location regardless of class.
+    Needed because WBF only fuses boxes of the same class; if TTA passes predict
+    different classes for the same object, WBF leaves them as separate boxes.
+    """
+    if not boxes:
+        return []
+    boxes = sorted(boxes, key=lambda b: b[1], reverse=True)
+    kept = []
+    while boxes:
+        best = boxes.pop(0)
+        boxes = [b for b in boxes if _iou_single(best[2:], b[2:]) < iou_threshold]
+        kept.append(best)
+    return kept
+
+
 # ============================================================
 # INFERENCE WITH TTA
 # ============================================================
@@ -276,8 +293,10 @@ def main():
             tta_boxes_list,
             iou_threshold=args.iou_wbf,
         )
+        # Remove cross-class duplicates (same location, different class predicted by different TTA passes)
+        fused = class_agnostic_nms(fused, iou_threshold=0.5)
 
-        # Filtrar por tau
+        # Filter by tau
         confident_boxes = [b for b in fused if b[1] >= args.tau]
 
         if len(confident_boxes) == 0:
