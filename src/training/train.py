@@ -15,10 +15,6 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import core.config as config
-<<<<<<< HEAD
-=======
-
->>>>>>> 4883e0d (fix: Move DATASET_TYPE assertion inside main() function)
 import torch
 import torch.optim as optim
 from core.model import YOLOv4
