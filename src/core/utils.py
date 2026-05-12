@@ -467,6 +467,7 @@ def get_loaders(
     train_label_dir=None,
     val_img_dir=None,
     val_label_dir=None,
+    mosaic_prob: float = 0.0,
 ):
     """
     Creates and returns DataLoaders for training, validation and train-eval.
@@ -497,6 +498,7 @@ def get_loaders(
         label_dir=t_lbl,
         anchors=config.ANCHORS,
         C=num_classes,
+        mosaic_prob=mosaic_prob,
     )
     val_dataset = YOLODataset(
         val_csv_path,

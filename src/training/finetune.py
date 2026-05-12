@@ -156,6 +156,7 @@ def main():
         train_label_dir=config.LABEL_DIR,
         val_img_dir=config.VAL_IMG_DIR,
         val_label_dir=config.VAL_LABEL_DIR,
+        mosaic_prob=0.5,   # 50 % of batches use 4-image mosaic to combat overfitting
     )
     print(f"  Dataloaders ready:  train={len(train_loader.dataset)} imgs | "
           f"val={len(val_loader.dataset)} imgs\n")
