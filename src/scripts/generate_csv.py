@@ -27,7 +27,7 @@ def scan_folder(folder_path: str, output_csv: str) -> None:
     Only includes images with corresponding .txt file that is not empty.
     """
     if not os.path.exists(folder_path):
-        print(f"ERROR: La carpeta '{folder_path}' no existe.")
+        print(f"  ⚠️  Folder not found, skipping: '{folder_path}'")
         return
 
     filenames = sorted(os.listdir(folder_path))
@@ -78,21 +78,21 @@ def generate_generic() -> None:
 
 
 def generate_specific() -> None:
-    """Genera los CSVs del dataset específico para fine-tuning."""
-    print("Generando CSVs del dataset específico...")
+    """Generates CSVs for the specific fine-tuning dataset."""
+    print("Generating CSVs for specific dataset...")
     dataset_dir = os.path.join(BASE_DIR, "data", "yolo_dataset")
 
-    # Train: solo las imágenes etiquetadas
+    # Train: labeled images only
     scan_folder(
         folder_path=os.path.join(dataset_dir, "train", "labelled"),
         output_csv=os.path.join(dataset_dir, "train.csv"),
     )
-    # Validación: carpeta val
+    # Validation: val folder
     scan_folder(
         folder_path=os.path.join(dataset_dir, "val"),
         output_csv=os.path.join(dataset_dir, "val.csv"),
     )
-    # Test final
+    # Final test (optional — skipped if folder does not exist or is empty)
     scan_folder(
         folder_path=os.path.join(dataset_dir, "test"),
         output_csv=os.path.join(dataset_dir, "test.csv"),
@@ -100,13 +100,13 @@ def generate_specific() -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generador de CSVs para YOLOv4")
+    parser = argparse.ArgumentParser(description="CSV generator for YOLOv4")
     parser.add_argument(
         "--dataset",
         type=str,
         choices=["generic", "specific", "all"],
         default="all",
-        help="Qué dataset procesar: 'generic', 'specific' o 'all' (por defecto: all)",
+        help="Which dataset to process: 'generic', 'specific' or 'all' (default: all)",
     )
     args = parser.parse_args()
 
