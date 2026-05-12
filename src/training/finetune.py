@@ -62,7 +62,7 @@ torch.backends.cudnn.benchmark = True
 FASE1_EPOCHS   = 15       # Heads only
 FASE2_EPOCHS   = 100      # Neck + SPP + heads
 LR_FASE1       = 1e-4     # Higher: heads start from random weights
-LR_FASE2       = 5e-6     # Lower: fine-tune without destroying learning
+LR_FASE2       = 2e-6     # Lower: fine-tune without destroying learning
 MAP_EVAL_FREQ  = 5        # Evaluate mAP every N epochs in phase 2
 PATIENCE       = 15       # Early stopping: epochs without val_loss improvement
 FASE3_EPOCHS   = 30       # Full unfreezing
@@ -313,6 +313,13 @@ def main():
     print(f"{'─'*60}\n")
 
     unfreeze_all(model)
+
+    # Reload best Phase 2 checkpoint before full backbone fine-tuning
+    print("  Reloading best Phase 2 checkpoint before unfreezing backbone...")
+    ckpt = torch.load(config.FINETUNE_BEST, map_location=config.DEVICE)
+    model.load_state_dict(ckpt["state_dict"])
+    print(f"  ✅ Restored best val_loss={best_val_loss:.4f} state.\n")
+
     scaler = torch.amp.GradScaler("cuda")
 
     optimizer_f3 = optim.AdamW(
