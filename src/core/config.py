@@ -70,9 +70,10 @@ WEIGHT_DECAY  = 1e-4
 BATCH_SIZE    = 24       
 NUM_EPOCHS    = 300
 
-CONF_THRESHOLD  = 0.5
-NMS_IOU_THRESH  = 0.45
-MAP_IOU_THRESH  = 0.5
+CONF_THRESHOLD      = 0.5    # inference / NMS filtering threshold
+MAP_CONF_THRESHOLD  = 0.25   # lower threshold used only for mAP evaluation (keeps more TPs)
+NMS_IOU_THRESH      = 0.45
+MAP_IOU_THRESH      = 0.5
 
 # SSL Hyperparams
 SSL_TAU         = 0.9   # Confidence threshold for pseudo-labels (WBF)

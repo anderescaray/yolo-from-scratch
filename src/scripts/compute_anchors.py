@@ -81,9 +81,25 @@ def kmeans_iou(boxes: np.ndarray, k: int, n_iter: int = 500, seed: int = 42) -> 
 # ============================================================
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--mosaic_prob", type=float, default=0.0,
+        help=(
+            "If > 0, simulate mosaic augmentation by adding scaled copies of "
+            "each box. Each box is duplicated with w,h multiplied by a random "
+            "quadrant scale factor drawn from Uniform(0.25, 0.75), representing "
+            "a box placed in one quadrant of a 4-image mosaic canvas. "
+            "Set to the same mosaic_prob used in training (e.g. 0.5)."
+        ),
+    )
+    args = parser.parse_args()
+
     print(f"\n{'='*60}")
     print("  ANCHOR COMPUTATION — K-means (IoU distance)")
     print(f"  Dataset: {config.TRAIN_CSV}")
+    if args.mosaic_prob > 0:
+        print(f"  Mosaic simulation: prob={args.mosaic_prob}")
     print(f"{'='*60}\n")
 
     # ------ Collect all (w, h) from labeled training set ------
@@ -96,6 +112,8 @@ def main():
 
     df = pd.read_csv(train_csv)
     label_files = df.iloc[:, 1].tolist()
+
+    rng = np.random.default_rng(seed=42)
 
     boxes_wh = []
     missing = 0
@@ -111,6 +129,11 @@ def main():
                     w, h = float(parts[3]), float(parts[4])
                     if w > 1e-4 and h > 1e-4:
                         boxes_wh.append([w, h])
+                        # Simulate what mosaic does: box lands in a quadrant whose
+                        # side is ~Uniform(0.25, 0.75) of the full canvas.
+                        if args.mosaic_prob > 0 and rng.random() < args.mosaic_prob:
+                            scale = rng.uniform(0.25, 0.75)
+                            boxes_wh.append([w * scale, h * scale])
 
     if len(boxes_wh) == 0:
         print("ERROR: No bounding boxes found. Check LABEL_DIR and TRAIN_CSV.")

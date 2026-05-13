@@ -62,7 +62,7 @@ torch.backends.cudnn.benchmark = True
 FASE1_EPOCHS   = 15       # Heads only
 FASE2_EPOCHS   = 100      # Neck + SPP + heads
 LR_FASE1       = 1e-4     # Higher: heads start from random weights
-LR_FASE2       = 2e-6     # Lower: fine-tune without destroying learning
+LR_FASE2       = 1e-5     # Lower: fine-tune without destroying learning
 MAP_EVAL_FREQ  = 5        # Evaluate mAP every N epochs in phase 2
 PATIENCE       = 15       # Early stopping: epochs without val_loss improvement
 FASE3_EPOCHS   = 30       # Full unfreezing
@@ -273,14 +273,14 @@ def main():
 
         if (epoch + 1) % MAP_EVAL_FREQ == 0:
             class_acc, noobj_acc, obj_acc = check_class_accuracy(
-                model, val_loader, threshold=config.CONF_THRESHOLD
+                model, val_loader, threshold=config.MAP_CONF_THRESHOLD
             )
             pred_boxes, true_boxes = get_evaluation_bboxes(
                 val_loader,
                 model,
                 iou_threshold=config.NMS_IOU_THRESH,
                 anchors=config.ANCHORS,
-                threshold=config.CONF_THRESHOLD,
+                threshold=config.MAP_CONF_THRESHOLD,
                 device=config.DEVICE,
             )
             map_val = mean_average_precision(
@@ -349,13 +349,13 @@ def main():
 
         if (epoch + 1) % MAP_EVAL_FREQ == 0:
             class_acc, noobj_acc, obj_acc = check_class_accuracy(
-                model, val_loader, threshold=config.CONF_THRESHOLD
+                model, val_loader, threshold=config.MAP_CONF_THRESHOLD
             )
             pred_boxes, true_boxes = get_evaluation_bboxes(
                 val_loader, model,
                 iou_threshold=config.NMS_IOU_THRESH,
                 anchors=config.ANCHORS,
-                threshold=config.CONF_THRESHOLD,
+                threshold=config.MAP_CONF_THRESHOLD,
                 device=config.DEVICE,
             )
             map_val = mean_average_precision(

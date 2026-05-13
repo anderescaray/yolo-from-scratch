@@ -242,6 +242,8 @@ def mean_average_precision(
         # torch.trapz for numerical integration
         average_precisions.append(torch.trapz(precisions, recalls))
 
+    if not average_precisions:
+        return torch.tensor(0.0)
     return sum(average_precisions) / len(average_precisions)
 
 def plot_image(image, boxes):
@@ -317,11 +319,15 @@ def get_evaluation_bboxes(
             for idx, (box) in enumerate(boxes_scale_i):
                 bboxes[idx] += box
 
-        S_small = predictions[2].shape[2]
-        anchor_small = torch.tensor([*anchors[2]]).to(device) * S_small
-        true_bboxes = cells_to_bboxes(
-            labels[2], anchor_small, S=S_small, is_preds=False
-        )
+        # Collect GT from ALL three scales — an object is assigned to exactly one.
+        # Collecting only from labels[2] (52x52) misses objects on scales 0/1.
+        merged_true_bboxes = [[] for _ in range(batch_size)]
+        for scale_idx in range(3):
+            S_gt = predictions[scale_idx].shape[2]
+            anchor_gt = torch.tensor([*anchors[scale_idx]]).to(device) * S_gt
+            scale_true = cells_to_bboxes(labels[scale_idx], anchor_gt, S=S_gt, is_preds=False)
+            for idx in range(batch_size):
+                merged_true_bboxes[idx] += scale_true[idx]
 
         for idx in range(batch_size):
             nms_boxes = non_max_suppression(
@@ -334,7 +340,7 @@ def get_evaluation_bboxes(
             for nms_box in nms_boxes:
                 all_pred_boxes.append([train_idx] + nms_box)
 
-            for box in true_bboxes[idx]:
+            for box in merged_true_bboxes[idx]:
                 if box[1] > threshold:
                     all_true_boxes.append([train_idx] + box)
 
