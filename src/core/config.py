@@ -84,12 +84,19 @@ SSL_LOSS_WEIGHT = 1.0    # Relative weight of pseudo loss vs labeled
 # ============================================================
 
 # Specific dataset (fine-tuning) — 20 supermarket classes
+# specific_class_labels = [
+#     "coca_cola_bottle", "coca_cola_can", "orange_fanta_bottle", "heineken_can",
+#     "whole_milk", "semi_skimmed_milk", "skimmed_milk", "banana", "orange",
+#     "green_apple", "red_apple", "natural_yogurt", "stracciatella_yogurt",
+#     "shampoo_hs", "shampoo_hacendado", "ketchup", "mayonnaise",
+#     "fried_tomato", "york_ham", "turkey_ham"
+# ]
+
+# 10 visually distinct classes
 specific_class_labels = [
-    "coca_cola_bottle", "coca_cola_can", "orange_fanta_bottle", "heineken_can",
-    "whole_milk", "semi_skimmed_milk", "skimmed_milk", "banana", "orange",
-    "green_apple", "red_apple", "natural_yogurt", "stracciatella_yogurt",
-    "shampoo_hs", "shampoo_hacendado", "ketchup", "mayonnaise",
-    "fried_tomato", "york_ham", "turkey_ham"
+    "coca_cola_bottle", "coca_cola_can", "heineken_can", "whole_milk",
+    "banana", "orange", "green_apple", "natural_yogurt",
+    "ketchup", "mayonnaise",
 ]
 
 GENERIC_NUM_CLASSES = 1 # Class-Agnostic
