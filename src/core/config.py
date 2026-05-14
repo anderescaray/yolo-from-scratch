@@ -95,9 +95,16 @@ SSL_LOSS_WEIGHT = 1.0    # Relative weight of pseudo loss vs labeled
 
 # 10 visually distinct classes
 specific_class_labels = [
-    "coca_cola_bottle", "coca_cola_can", "heineken_can", "whole_milk",
-    "banana", "orange", "green_apple", "natural_yogurt",
-    "ketchup", "mayonnaise",
+    "coca_cola_bottle",
+    "coca_cola_can",
+    "heineken_can",
+    "whole_milk",
+    "banana",
+    "orange",
+    "green_apple",
+    "natural_yogurt",
+    "ketchup",
+    "mayonnaise",
 ]
 
 GENERIC_NUM_CLASSES = 1 # Class-Agnostic
