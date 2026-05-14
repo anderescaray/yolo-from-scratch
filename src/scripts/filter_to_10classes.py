@@ -50,10 +50,18 @@ KEEP_CLASSES: Dict[str, int] = {
     "mayonnaise":       9,
 }
 
-# Build old_index → new_index from the original 20-class list in config.
-_OLD_LABELS: List[str] = config.specific_class_labels
+# Hardcoded source labels — always the original 20-class list regardless of config state.
+# These must match the order in which classes were annotated in the source .txt files.
+_ORIGINAL_LABELS: List[str] = [
+    "coca_cola_bottle", "coca_cola_can", "orange_fanta_bottle", "heineken_can",
+    "whole_milk", "semi_skimmed_milk", "skimmed_milk", "banana", "orange",
+    "green_apple", "red_apple", "natural_yogurt", "stracciatella_yogurt",
+    "shampoo_hs", "shampoo_hacendado", "ketchup", "mayonnaise",
+    "fried_tomato", "york_ham", "turkey_ham",
+]
+
 OLD_TO_NEW: Dict[int, int] = {
-    _OLD_LABELS.index(name): new_idx
+    _ORIGINAL_LABELS.index(name): new_idx
     for name, new_idx in KEEP_CLASSES.items()
 }
 
@@ -67,13 +75,13 @@ VALID_EXT = {".jpg", ".jpeg", ".png", ".bmp"}
 def class_from_stem(stem: str) -> Optional[str]:
     """
     Extracts the class name from an image filename stem.
-    Checks longest names first to avoid prefix conflicts
-    (e.g. 'orange_fanta_bottle' vs 'orange').
-    Returns None if the stem does not belong to a kept class.
+    Checks ALL original labels (kept + excluded) sorted longest-first so that
+    'orange_fanta_bottle_001' matches 'orange_fanta_bottle' before 'orange'.
+    Returns None if the longest match is not a kept class.
     """
-    for name in sorted(KEEP_CLASSES, key=len, reverse=True):
+    for name in sorted(_ORIGINAL_LABELS, key=len, reverse=True):
         if stem.startswith(name + "_"):
-            return name
+            return name if name in KEEP_CLASSES else None
     return None
 
 
