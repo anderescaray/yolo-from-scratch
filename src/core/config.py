@@ -60,6 +60,7 @@ else:  # "specific"
 CHECKPOINT_FILE     = BASE_DIR / "checkpoints" / "checkpoint.pth.tar"
 FINETUNE_CHECKPOINT = BASE_DIR / "checkpoints" / "finetune_checkpoint.pth.tar"
 FINETUNE_BEST       = BASE_DIR / "checkpoints" / "finetune_best.pth.tar"
+FINETUNE_BEST_MAP   = BASE_DIR / "checkpoints" / "finetune_best_map.pth.tar"
 SSL_BEST            = BASE_DIR / "checkpoints" / "ssl_best.pth.tar"
 
 # ============================================================
