@@ -85,64 +85,73 @@ def load_pseudo_label(txt_path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max", type=int, default=150,
+    parser.add_argument("--max", type=int, default=50,
                         help="Número máximo de imágenes a visualizar (default: 50)")
     args = parser.parse_args()
 
-    img_dir   = config.UNLABELLED_IMG_DIR
-    label_dir = config.PSEUDO_LABEL_DIR
+    img_dir     = config.UNLABELLED_IMG_DIR
+    label_dir   = config.PSEUDO_LABEL_DIR
     class_names = config.specific_class_labels
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    valid_ext = {".jpg", ".jpeg", ".png", ".bmp"}
-    img_files = sorted([
-        f for f in os.listdir(img_dir)
-        if os.path.splitext(f)[1].lower() in valid_ext
+    # Iterate over the .txt files in pseudo_labelled/ — only images that actually
+    # got a pseudo-label are shown (no point showing the ones that were skipped).
+    valid_ext   = {".jpg", ".jpeg", ".png", ".bmp"}
+    label_files = sorted([
+        f for f in os.listdir(label_dir)
+        if f.endswith(".txt")
     ])
 
+    total = len(label_files)
+    to_viz = min(args.max, total)
+
     print(f"\n{'='*60}")
-    print(f"  VISUALIZADOR DE PSEUDO-LABELS")
-    print(f"  Imágenes disponibles: {len(img_files)}")
-    print(f"  Visualizando: {min(args.max, len(img_files))}")
-    print(f"  Salida: {OUTPUT_DIR}")
+    print(f"  PSEUDO-LABELS VISUALIZER")
+    print(f"  Labels found in pseudo_labelled/: {total}")
+    print(f"  Visualizing: {to_viz}")
+    print(f"  Output: {OUTPUT_DIR}")
     print(f"{'='*60}\n")
 
-    found = 0
-    no_label = 0
+    found    = 0
+    missing  = 0
 
-    for img_name in img_files[:args.max]:
-        img_path   = os.path.join(img_dir, img_name)
-        label_name = os.path.splitext(img_name)[0] + ".txt"
+    for label_name in label_files[:args.max]:
+        base      = os.path.splitext(label_name)[0]
         label_path = os.path.join(label_dir, label_name)
 
-        image_np = np.array(Image.open(img_path).convert("RGB"))
+        # Find the matching image (try all valid extensions)
+        img_path = None
+        for ext in valid_ext:
+            candidate = os.path.join(img_dir, base + ext)
+            if os.path.exists(candidate):
+                img_path = candidate
+                break
 
-        if os.path.exists(label_path):
-            boxes = load_pseudo_label(label_path)
-            found += 1
-        else:
-            # Sin pseudo-label: guardar la imagen con texto "sin detección"
-            boxes = []
-            no_label += 1
+        if img_path is None:
+            print(f"  ⚠️  Image not found for label: {label_name}")
+            missing += 1
+            continue
+
+        image_np = np.array(Image.open(img_path).convert("RGB"))
+        boxes    = load_pseudo_label(label_path)
+        found   += 1
 
         vis = draw_boxes(image_np, boxes, class_names)
 
-        # Añadir texto de estado en la esquina
-        status = f"{len(boxes)} detecciones" if boxes else "SIN PSEUDO-LABEL"
+        img_name = os.path.basename(img_path)
+        status   = f"{len(boxes)} detections"
         cv2.putText(vis, status, (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0) if boxes else (0, 0, 255), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
         cv2.putText(vis, img_name, (10, vis.shape[0] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
 
         out_path = os.path.join(OUTPUT_DIR, f"viz_{img_name}")
-        # Guardar en BGR (OpenCV)
         cv2.imwrite(out_path, cv2.cvtColor(vis, cv2.COLOR_RGB2BGR))
 
-    print(f"  Con pseudo-label:   {found}")
-    print(f"  Sin pseudo-label:   {no_label}")
-    print(f"\n  ✅ Imágenes guardadas en: {OUTPUT_DIR}")
-    print(f"     Ábrelas y revisa si las cajas tienen sentido.\n")
+    print(f"  Visualized:           {found}")
+    print(f"  Image not found:      {missing}")
+    print(f"\n  ✅ Images saved to: {OUTPUT_DIR}\n")
 
 
 if __name__ == "__main__":
