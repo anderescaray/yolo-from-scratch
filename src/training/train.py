@@ -69,17 +69,23 @@ def train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors):
         with torch.amp.autocast("cuda"):
             out = model(x)
 
-        # OUTSIDE autocast, to convert predictions to Float32
-        # to prevent w/h^2 from being w/0.0 and giving inf
-        out0 = out[0].float()
-        out1 = out[1].float()
-        out2 = out[2].float()
+        # OUTSIDE autocast, convert to float32.
+        # nan_to_num guards against -inf*0=NaN from Mish in fp16.
+        out0 = torch.nan_to_num(out[0].float(), nan=0.0, posinf=100.0, neginf=-100.0)
+        out1 = torch.nan_to_num(out[1].float(), nan=0.0, posinf=100.0, neginf=-100.0)
+        out2 = torch.nan_to_num(out[2].float(), nan=0.0, posinf=100.0, neginf=-100.0)
 
         loss = (
             loss_fn(out0, y0, scaled_anchors[0])
             + loss_fn(out1, y1, scaled_anchors[1])
             + loss_fn(out2, y2, scaled_anchors[2])
         )
+
+        # Skip batch if loss is still non-finite (bad pseudo-label target)
+        if not torch.isfinite(loss):
+            optimizer.zero_grad()
+            loop.set_postfix(loss="skip-nan")
+            continue
 
         # Backpropagation
         losses.append(loss.item())

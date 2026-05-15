@@ -60,12 +60,12 @@ torch.backends.cudnn.benchmark = True
 # FINE-TUNING HYPERPARAMETERS
 # ============================================================
 FASE1_EPOCHS   = 15       # Heads only
-FASE2_EPOCHS   = 100      # Neck + SPP + heads
+FASE2_EPOCHS   = 150      # Neck + SPP + heads
 LR_FASE1       = 1e-4     # Higher: heads start from random weights
 LR_FASE2       = 1e-5     # Lower: fine-tune without destroying learning
 MAP_EVAL_FREQ  = 5        # Evaluate mAP every N epochs in phase 2
 PATIENCE       = 15       # Early stopping: epochs without val_loss improvement
-FASE3_EPOCHS   = 30       # Full unfreezing
+FASE3_EPOCHS   = 60       # Full unfreezing
 LR_FASE3       = 1e-6     # Very low to not break backbone
 
 # ============================================================
@@ -242,7 +242,8 @@ def main():
     )
     scheduler = CosineAnnealingLR(optimizer_f2, T_max=FASE2_EPOCHS, eta_min=1e-7)
 
-    best_val_loss    = float("inf")
+    best_val_loss     = float("inf")
+    best_map          = 0.0
     epochs_no_improve = 0
 
     for epoch in range(FASE2_EPOCHS):
@@ -291,6 +292,10 @@ def main():
                 num_classes=config.SPECIFIC_NUM_CLASSES,
             )
             print(f"  mAP@{config.MAP_IOU_THRESH}: {map_val.item():.4f}")
+            if map_val.item() > best_map:
+                best_map = map_val.item()
+                save_checkpoint(model, optimizer_f2, filename=config.FINETUNE_BEST_MAP)
+                print(f"  ✅ Best mAP: {best_map:.4f} → saved as finetune_best_map.pth.tar")
             log_dict.update({
                 "eval/mAP":      map_val.item(),
                 "eval/class_acc": class_acc,
@@ -365,6 +370,10 @@ def main():
                 num_classes=config.SPECIFIC_NUM_CLASSES,
             )
             print(f"  mAP@{config.MAP_IOU_THRESH}: {map_val.item():.4f}")
+            if map_val.item() > best_map:
+                best_map = map_val.item()
+                save_checkpoint(model, optimizer_f3, filename=config.FINETUNE_BEST_MAP)
+                print(f"  ✅ Best mAP: {best_map:.4f} → saved as finetune_best_map.pth.tar")
             wandb.log({
                 "phase": 3,
                 "epoch": FASE1_EPOCHS + FASE2_EPOCHS + epoch + 1,
