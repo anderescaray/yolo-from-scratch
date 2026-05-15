@@ -21,9 +21,16 @@ Uncertainty is estimated from two complementary signals over N TTA passes:
      the same detected object.  Complements entropy when the model is
      confident but wrong on half the passes.
 
+  4. Localization instability  (1 - mean_pairwise_IoU)
+     Complement of the mean pairwise IoU across all TTA-pass boxes that
+     were fused into the same cluster.  High value → the model is uncertain
+     about WHERE the object is, not just what class it belongs to.
+     Singleton clusters (detected in only one TTA pass) receive maximum
+     instability (1.0).  Reference: Kao et al. ACCV 2018.
+
 Per-box uncertainty:
-    u_box = α·H_norm + β·σ_score + γ·(1 - agreement)
-    with α=0.5, β=0.3, γ=0.2  and H normalised by log(C).
+    u_box = α·H_norm + β·σ_score + γ·(1 - agreement) + δ·loc_instability
+    with α=0.35, β=0.20, γ=0.15, δ=0.30  and H normalised by log(C).
 
 Per-image uncertainty:
     u_image = confidence-weighted mean of u_box over all detected objects.
@@ -74,9 +81,10 @@ from core.model import YOLOv4
 # ============================================================
 # UNCERTAINTY WEIGHTS  (tune if needed)
 # ============================================================
-W_ENTROPY     = 0.5   # weight for classification entropy
-W_SCORE_STD   = 0.3   # weight for TTA confidence variance
-W_DISAGREEMENT= 0.2   # weight for TTA class disagreement
+W_ENTROPY      = 0.35  # classification entropy                [Settles 2009]
+W_SCORE_STD    = 0.20  # TTA confidence variance               [Lakshminarayanan 2017]
+W_DISAGREEMENT = 0.15  # TTA class disagreement ratio          [Beluch 2018]
+W_LOC_INSTAB   = 0.30  # localization instability (1 - pairwise IoU)  [Kao 2018]
 
 
 # ============================================================
@@ -231,6 +239,26 @@ def _iou(a: List[float], b: List[float]) -> float:
     return inter / (union + 1e-8)
 
 
+def _mean_pairwise_iou(boxes: List[List[float]]) -> float:
+    """
+    Mean pairwise IoU across all box pairs in a TTA cluster.
+
+    High mean IoU → boxes agree on location → low localization instability.
+    Low mean IoU → boxes disagree on location → high localization instability.
+
+    Singleton clusters (detected in only one TTA pass) return 0.0, which maps
+    to maximum instability (1.0) after the complement is taken by the caller.
+    This is intentional: a box seen in just one pass cannot be location-verified.
+
+    Reference: Kao et al. 2018 (localization tightness/stability criterion).
+    """
+    n = len(boxes)
+    if n <= 1:
+        return 0.0
+    total = sum(_iou(boxes[i], boxes[j]) for i in range(n) for j in range(i + 1, n))
+    return total / (n * (n - 1) / 2)
+
+
 # ============================================================
 # UNCERTAINTY-AWARE WBF
 # ============================================================
@@ -287,20 +315,26 @@ def _wbf_uncertainty(
 
     results = []
     for i, c in enumerate(clusters):
-        scores   = [b[1] for b in c]
-        entropies= [b[6] for b in c]
-        classes  = [int(b[0]) for b in c]
-        majority = max(set(classes), key=classes.count)
+        scores    = [b[1] for b in c]
+        entropies = [b[6] for b in c]
+        classes   = [int(b[0]) for b in c]
+        majority  = max(set(classes), key=classes.count)
         agreement = classes.count(majority) / len(classes)
 
+        # Localization instability: complement of mean pairwise IoU.
+        # 1.0 → boxes completely disagree on location across TTA passes.
+        # 0.0 → all TTA passes predict the exact same box.
+        loc_instability = 1.0 - _mean_pairwise_iou(c)
+
         results.append({
-            "class":           int(fused[i][0]),
-            "score":           float(fused[i][1]),
+            "class":            int(fused[i][0]),
+            "score":            float(fused[i][1]),
             "x": float(fused[i][2]), "y": float(fused[i][3]),
             "w": float(fused[i][4]), "h": float(fused[i][5]),
-            "mean_entropy":    float(np.mean(entropies)),
-            "score_std":       float(np.std(scores)) if len(scores) > 1 else 0.0,
-            "class_agreement": float(agreement),
+            "mean_entropy":     float(np.mean(entropies)),
+            "score_std":        float(np.std(scores)) if len(scores) > 1 else 0.0,
+            "class_agreement":  float(agreement),
+            "loc_instability":  float(loc_instability),
         })
 
     return results
@@ -321,28 +355,34 @@ def _image_uncertainty(clusters: List[Dict]) -> Tuple[float, Dict]:
     Returns (uncertainty_score, stats_dict).
     """
     if not clusters:
-        return 0.0, {"n_detections": 0, "mean_entropy": 0.0,
-                     "mean_score_std": 0.0, "mean_class_agreement": 1.0}
+        return 0.0, {
+            "n_detections": 0, "mean_entropy": 0.0, "mean_score_std": 0.0,
+            "mean_class_agreement": 1.0, "mean_loc_instability": 0.0,
+        }
 
-    scores   = np.array([c["score"]           for c in clusters])
-    entropies= np.array([c["mean_entropy"]    for c in clusters])
-    stds     = np.array([c["score_std"]       for c in clusters])
-    agrs     = np.array([c["class_agreement"] for c in clusters])
+    scores   = np.array([c["score"]            for c in clusters])
+    entropies= np.array([c["mean_entropy"]      for c in clusters])
+    stds     = np.array([c["score_std"]         for c in clusters])
+    agrs     = np.array([c["class_agreement"]   for c in clusters])
+    locs     = np.array([c["loc_instability"]   for c in clusters])
 
-    # Per-box combined uncertainty  u = α·H + β·σ + γ·(1-agreement)
-    per_box_u = (W_ENTROPY      * entropies
-                 + W_SCORE_STD  * stds
-                 + W_DISAGREEMENT * (1.0 - agrs))
+    # Per-box combined uncertainty: classification entropy + TTA score variance
+    # + class disagreement + localization instability  [Kao 2018]
+    per_box_u = (W_ENTROPY       * entropies
+                 + W_SCORE_STD   * stds
+                 + W_DISAGREEMENT * (1.0 - agrs)
+                 + W_LOC_INSTAB  * locs)
 
     # Confidence-weighted mean
     weight_sum = scores.sum() + 1e-9
     img_score  = float((scores * per_box_u).sum() / weight_sum)
 
     stats = {
-        "n_detections":       len(clusters),
-        "mean_entropy":       float(entropies.mean()),
-        "mean_score_std":     float(stds.mean()),
-        "mean_class_agreement": float(agrs.mean()),
+        "n_detections":          len(clusters),
+        "mean_entropy":          float(entropies.mean()),
+        "mean_score_std":        float(stds.mean()),
+        "mean_class_agreement":  float(agrs.mean()),
+        "mean_loc_instability":  float(locs.mean()),
     }
     return img_score, stats
 
@@ -389,7 +429,7 @@ def main() -> None:
     print(f"  Top-K   : {args.top_k}")
     print(f"  Output  : {output_path}")
     print(f"  Signals : entropy×{W_ENTROPY} + score_std×{W_SCORE_STD}"
-          f" + disagreement×{W_DISAGREEMENT}")
+          f" + disagreement×{W_DISAGREEMENT} + loc_instab×{W_LOC_INSTAB}")
     print(f"{'='*60}\n")
 
     # --- Load model ---
@@ -438,7 +478,7 @@ def main() -> None:
     # --- Save full CSV ---
     fieldnames = [
         "image", "uncertainty_score", "n_detections",
-        "mean_entropy", "mean_score_std", "mean_class_agreement",
+        "mean_entropy", "mean_score_std", "mean_class_agreement", "mean_loc_instability",
     ]
     with open(output_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
