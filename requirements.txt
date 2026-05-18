@@ -35,3 +35,7 @@ matplotlib
 
 # Tracking experiments
 wandb
+
+# Diversity sampling (deep_cluster_sampler.py — Vía B)
+scikit-learn
+umap-learn          # optional: visualization only (falls back to PCA if missing)

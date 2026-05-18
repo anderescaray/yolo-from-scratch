@@ -81,6 +81,15 @@ SSL_TAU         = 0.9   # Confidence threshold for pseudo-labels (WBF)
 SSL_LOSS_WEIGHT = 1.0    # Relative weight of pseudo loss vs labeled
 
 # ============================================================
+# DIVERSITY SAMPLING (deep_cluster_sampler.py — Vía B)
+# ============================================================
+DIVERSITY_BUDGET    = 75          # same budget as uncertainty experiment (Vía A)
+DIVERSITY_STRATEGY  = "coreset"   # "coreset" | "kmeans" | "clue"
+PCA_DIM             = 64          # dims after PCA whitening          [Jolliffe 2002]
+DIVERSITY_K         = 10          # K for kmeans/clue (= num classes) [Arthur & Vassilvitskii 2007]
+SILHOUETTE_K_RANGE  = (4, 16)     # search range when K=0 (auto)      [Rousseeuw 1987]
+
+# ============================================================
 # CLASSES
 # ============================================================
 

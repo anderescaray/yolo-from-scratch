@@ -29,13 +29,13 @@ from typing import List
 import core.config as config
 
 
-def _read_csv_ranked(csv_path: Path) -> List[str]:
-    """Return image filenames sorted descending by uncertainty_score."""
+def _read_csv_ranked(csv_path: Path, score_col: str = "uncertainty_score") -> List[str]:
+    """Return image filenames sorted descending by score_col."""
     rows = []
     with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            rows.append((row["image"], float(row["uncertainty_score"])))
+            rows.append((row["image"], float(row[score_col])))
     rows.sort(key=lambda r: r[1], reverse=True)
     return [r[0] for r in rows]
 
@@ -80,6 +80,11 @@ def main() -> None:
         "--output_dir", type=str, default=str(Path(config.BASE_DIR) / "annotation_batches"),
         help="Root output directory (default: <project_root>/annotation_batches).",
     )
+    parser.add_argument(
+        "--score_col", type=str, default="uncertainty_score",
+        help="CSV column used to rank images (default: uncertainty_score). "
+             "Use diversity_score for diversity_query.csv.",
+    )
     args = parser.parse_args()
 
     csv_path = Path(args.csv)
@@ -97,7 +102,7 @@ def main() -> None:
         print(f"[ERROR] Source directory not found: {src_dir}")
         sys.exit(1)
 
-    ranked = _read_csv_ranked(csv_path)
+    ranked = _read_csv_ranked(csv_path, args.score_col)
     total  = len(ranked)
 
     if total < k * 2:

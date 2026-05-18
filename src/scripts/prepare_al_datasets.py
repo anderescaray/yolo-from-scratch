@@ -37,13 +37,15 @@ from typing import Set
 import core.config as config
 
 
-def _read_excluded_sets(csv_path: Path, k: int) -> tuple[Set[str], Set[str]]:
-    """Return (uncertain_stems, certain_stems) — stems to EXCLUDE from each copy."""
+def _read_excluded_sets(
+    csv_path: Path, k: int, score_col: str = "uncertainty_score"
+) -> tuple[Set[str], Set[str]]:
+    """Return (top_stems, bottom_stems) — stems to EXCLUDE from each copy."""
     rows = []
     with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            rows.append((row["image"], float(row["uncertainty_score"])))
+            rows.append((row["image"], float(row[score_col])))
     rows.sort(key=lambda r: r[1], reverse=True)
 
     if len(rows) < k * 2:
@@ -114,6 +116,11 @@ def main() -> None:
         "--source", type=str, default=str(config.DATASET_DIR),
         help="Source dataset directory (default: DATASET_DIR from config).",
     )
+    parser.add_argument(
+        "--score_col", type=str, default="uncertainty_score",
+        help="CSV column used to rank images (default: uncertainty_score). "
+             "Use diversity_score for diversity_query.csv.",
+    )
     args = parser.parse_args()
 
     csv_path = Path(args.csv)
@@ -137,7 +144,7 @@ def main() -> None:
     print(f"  K      : {k} images excluded per copy")
     print(f"{'='*58}\n")
 
-    uncertain_stems, certain_stems = _read_excluded_sets(csv_path, k)
+    uncertain_stems, certain_stems = _read_excluded_sets(csv_path, k, args.score_col)
 
     dst_uncertain = src.parent / f"{src.name}_uncertain"
     dst_certain   = src.parent / f"{src.name}_certain"
