@@ -69,12 +69,12 @@ torch.backends.cudnn.benchmark = True
 # FINE-TUNING HYPERPARAMETERS
 # ============================================================
 FASE1_EPOCHS  = 15        # Heads only
-FASE2_EPOCHS  = 150       # Neck + SPP + heads
+FASE2_EPOCHS  = 180       # Neck + SPP + heads
 LR_FASE1      = 1e-4      # Higher: heads start from random weights
 LR_FASE2      = 1e-5      # Lower: fine-tune without destroying learning
 MAP_EVAL_FREQ = 5         # Evaluate mAP every N epochs
 PATIENCE      = 15        # Early stopping: epochs without val_loss improvement
-FASE3_EPOCHS  = 60        # Full unfreezing
+FASE3_EPOCHS  = 120        # Full unfreezing
 LR_FASE3      = 1e-6      # Very low to not break backbone
 
 
