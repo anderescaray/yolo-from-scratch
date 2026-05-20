@@ -63,7 +63,7 @@ def main():
     # ----------------------------------------------------------
     model = YOLOv4(num_classes=config.SPECIFIC_NUM_CLASSES).to(config.DEVICE)
 
-    weights_path = config.FINETUNE_BEST
+    weights_path = config.FINETUNE_BEST_MAP
     if not os.path.exists(weights_path):
         raise FileNotFoundError(
             f"Checkpoint not found: {weights_path}\n"
