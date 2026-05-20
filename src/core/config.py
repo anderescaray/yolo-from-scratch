@@ -90,6 +90,24 @@ DIVERSITY_K         = 10          # K for kmeans/clue (= num classes) [Arthur & 
 SILHOUETTE_K_RANGE  = (4, 16)     # search range when K=0 (auto)      [Rousseeuw 1987]
 
 # ============================================================
+# CONTRASTIVE PRETRAINING (contrastive_pretrain.py — Vía C)
+# ============================================================
+# Trains a small projection head on top of the frozen backbone with a joint
+# NT-Xent (SimCLR) + SupCon loss to produce a class-discriminative latent space
+# for Vía B diversity sampling. The detector weights are NOT touched.
+CONTRASTIVE_EPOCHS       = 60       # ~10-20 min on a single GPU for ~3.5k images
+CONTRASTIVE_BATCH_SIZE   = 64       # batch of distinct images; each yields 2 views
+CONTRASTIVE_LR           = 3e-4     # AdamW LR for head + unfrozen CSP block
+CONTRASTIVE_WEIGHT_DECAY = 1e-4
+CONTRASTIVE_TEMPERATURE  = 0.2      # τ in NT-Xent / SupCon  [Chen 2020; Khosla 2020]
+CONTRASTIVE_PROJ_DIM     = 128      # output dim of projection head  [SimCLR default]
+CONTRASTIVE_HIDDEN_DIM   = 512      # hidden dim of MLP projection head
+CONTRASTIVE_SUPCON_LAMBDA = 1.0     # weight of SupCon term in joint loss
+CONTRASTIVE_WARMUP_EPOCHS = 5       # cosine warmup before main decay
+CONTRASTIVE_UNFREEZE_LAST_CSP = True  # also fine-tune the last CSPBlock (4-rep)
+CONTRASTIVE_CHECKPOINT   = BASE_DIR / "checkpoints" / "projection_head.pth.tar"
+
+# ============================================================
 # CLASSES
 # ============================================================
 

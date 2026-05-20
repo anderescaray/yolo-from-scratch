@@ -74,7 +74,8 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 import core.config as config
-from core.model import YOLOv4
+from core.model import YOLOv4, CSPBlock
+from core.contrastive import ProjectionHead
 
 # ============================================================
 # CONSTANTS  (all overridable via CLI; sourced from config)
@@ -103,15 +104,18 @@ def _extract_embeddings(
     model: YOLOv4,
     image_paths: List[Path],
     device: str,
+    projection_head: Optional[ProjectionHead] = None,
     desc: str = "Extracting embeddings",
 ) -> np.ndarray:
     """
-    Partial backbone forward → GAP → L2-normalize → [N, 1024].
+    Partial backbone forward → GAP → (optional projection head) → L2-normalize.
 
-    Runs only model.backbone (11 layers, no SPP/neck/heads).
-    Feature map [B, 1024, 13, 13] → GAP → [B, 1024] → L2-norm.
-    Same pipeline for both labeled and unlabeled images ensures a consistent
-    embedding space for distance-based selection. [Caron et al. ECCV 2018]
+    Without projection head:    [N, 1024]   (frozen-backbone baseline)
+    With projection head:       [N, D]      (contrastive latent space, default D=128)
+
+    Runs only model.backbone (no SPP/neck/heads). Same pipeline for both
+    labeled and unlabeled images ensures a consistent embedding space for
+    distance-based selection. [Caron et al. ECCV 2018]
     """
     transform = _build_transform()
     all_emb: List[np.ndarray] = []
@@ -132,10 +136,50 @@ def _extract_embeddings(
                     x = layer(x)
                 emb = x.float().mean(dim=(-2, -1))  # GAP: [B, 1024, 13, 13] → [B, 1024]
 
-        norms = emb.norm(dim=1, keepdim=True).clamp(min=1e-8)
-        all_emb.append((emb / norms).cpu().numpy())
+                if projection_head is not None:
+                    emb = projection_head(emb).float()           # [B, D]; already L2-normed
 
-    return np.concatenate(all_emb, axis=0)  # [N, 1024]
+        if projection_head is None:
+            norms = emb.norm(dim=1, keepdim=True).clamp(min=1e-8)
+            emb = emb / norms
+
+        all_emb.append(emb.cpu().numpy())
+
+    return np.concatenate(all_emb, axis=0)
+
+
+def _load_projection_head(
+    model: YOLOv4,
+    ckpt_path: Path,
+    device: str,
+) -> ProjectionHead:
+    """
+    Load the contrastive projection head from a checkpoint produced by
+    `contrastive_pretrain.py`. If the checkpoint contains an unfrozen last-CSP
+    block, its weights are overlaid onto `model.backbone[last_csp_idx]` so the
+    feature extractor matches what was used during contrastive training.
+    """
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+    cfg  = ckpt["head_config"]
+    head = ProjectionHead(
+        in_dim=cfg["in_dim"], hidden_dim=cfg["hidden_dim"], out_dim=cfg["out_dim"]
+    ).to(device)
+    head.load_state_dict(ckpt["projection_head"])
+    head.eval()
+    for p in head.parameters():
+        p.requires_grad = False
+    print(f"  Projection head loaded: {cfg['in_dim']} → {cfg['hidden_dim']} → {cfg['out_dim']}")
+
+    last_csp_block = ckpt.get("last_csp_block")
+    if last_csp_block is not None:
+        idx = last_csp_block["last_csp_idx"]
+        assert isinstance(model.backbone[idx], CSPBlock), (
+            "Mismatch: expected CSPBlock at the saved last_csp_idx."
+        )
+        model.backbone[idx].load_state_dict(last_csp_block["state_dict"])
+        print(f"  Backbone layer {idx} (last CSPBlock) replaced with contrastive weights.")
+
+    return head
 
 
 def _pca_whiten(
@@ -419,6 +463,10 @@ def main() -> None:
                         help="Path to active_query.csv (required for --strategy clue).")
     parser.add_argument("--output", type=str, default="diversity_query.csv",
                         help="Output CSV filename (default: diversity_query.csv).")
+    parser.add_argument("--projection_head", type=str, default=None,
+                        help="Path to projection_head.pth.tar from contrastive_pretrain.py. "
+                             "If set, embeddings are projected to the contrastive latent "
+                             "space (Vía C) before PCA / clustering.")
     args = parser.parse_args()
 
     weights_path = (
@@ -429,11 +477,12 @@ def main() -> None:
 
     print(f"\n{'='*60}")
     print(f"  DEEP CLUSTER SAMPLER — Diversity Query (Vía B)")
-    print(f"  Model    : {weights_path}")
-    print(f"  Strategy : {args.strategy}")
-    print(f"  Budget   : {args.budget}")
-    print(f"  PCA dim  : {args.pca_dim}")
-    print(f"  Output   : {output_path}")
+    print(f"  Model           : {weights_path}")
+    print(f"  Projection head : {args.projection_head or '(none — raw backbone GAP)'}")
+    print(f"  Strategy        : {args.strategy}")
+    print(f"  Budget          : {args.budget}")
+    print(f"  PCA dim         : {args.pca_dim}")
+    print(f"  Output          : {output_path}")
     print(f"{'='*60}\n")
 
     # --- Load model (backbone only used; SPP/neck/heads loaded but bypassed) ---
@@ -444,6 +493,15 @@ def main() -> None:
     for param in model.parameters():
         param.requires_grad = False
     print("  Model loaded (backbone frozen).\n")
+
+    # --- Optionally load the contrastive projection head (Vía C) ---
+    projection_head: Optional[ProjectionHead] = None
+    if args.projection_head:
+        head_path = Path(args.projection_head)
+        if not head_path.is_absolute():
+            head_path = Path(config.BASE_DIR) / head_path
+        projection_head = _load_projection_head(model, head_path, config.DEVICE)
+        print()
 
     # --- Unlabelled image list ---
     valid_ext = {".jpg", ".jpeg", ".png", ".bmp"}
@@ -471,10 +529,12 @@ def main() -> None:
 
     # --- Extract embeddings ---
     u_emb_raw = _extract_embeddings(model, unlabelled_files, config.DEVICE,
+                                    projection_head=projection_head,
                                     desc="Unlabelled embeddings")
     l_emb_raw: Optional[np.ndarray] = None
     if labelled_files:
         l_emb_raw = _extract_embeddings(model, labelled_files, config.DEVICE,
+                                        projection_head=projection_head,
                                         desc="Labelled embeddings  ")
 
     # --- PCA whitening ---
@@ -567,7 +627,8 @@ def main() -> None:
     print(f"\n  Full CSV → {output_path}")
 
     # --- 2D coverage figure ---
-    viz_path = Path(config.BASE_DIR) / "saved_images" / f"diversity_{args.strategy}.png"
+    viz_suffix = "_contrastive" if projection_head is not None else ""
+    viz_path = Path(config.BASE_DIR) / "saved_images" / f"diversity_{args.strategy}{viz_suffix}.png"
     print(f"\n  Generating coverage figure...")
     _save_visualization(u_emb, l_emb, selected_idx, cluster_labels,
                         args.strategy, viz_path)
