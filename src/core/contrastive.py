@@ -196,7 +196,7 @@ class SupConLoss(nn.Module):
             return torch.zeros((), device=device, requires_grad=True)
 
         # Sum log_prob over positives row-wise, divide by |P(i)|
-        log_prob_pos_sum = (log_prob * pos_mask.float()).sum(dim=1)         # [N]
+        log_prob_pos_sum = torch.where(pos_mask, log_prob, torch.zeros_like(log_prob)).sum(dim=1)  # [N]
         mean_log_prob_pos = log_prob_pos_sum[valid] / pos_count[valid].clamp(min=1)
 
         return -mean_log_prob_pos.mean()
