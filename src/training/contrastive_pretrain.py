@@ -227,6 +227,8 @@ def main() -> None:
     parser.add_argument("--warmup_epochs", type=int, default=config.CONTRASTIVE_WARMUP_EPOCHS)
     parser.add_argument("--no_unfreeze_last_csp", action="store_true",
                         help="Disable unfreezing of the last CSPBlock (head-only training).")
+    parser.add_argument("--num_workers", type=int, default=0,
+                        help="DataLoader workers. Default 0 avoids Windows multiprocessing deadlocks.")
     parser.add_argument("--output", type=str, default=str(config.CONTRASTIVE_CHECKPOINT))
     args = parser.parse_args()
 
@@ -312,8 +314,8 @@ def main() -> None:
         dataset,
         batch_size=args.batch_size,
         sampler=sampler,
-        num_workers=config.NUM_WORKERS,
-        pin_memory=config.PIN_MEMORY,
+        num_workers=args.num_workers,
+        pin_memory=(args.num_workers > 0 and config.PIN_MEMORY),
         drop_last=True,
     )
 

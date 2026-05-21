@@ -1,0 +1,1 @@
+python src/training/contrastive_pretrain.py --weights checkpoints/finetune_best_map.pth.tar
