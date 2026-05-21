@@ -218,7 +218,7 @@ def main() -> None:
     parser.add_argument("--weights", type=str, required=True,
                         help="Path to YOLOv4 detector checkpoint (.pth.tar).")
     parser.add_argument("--epochs", type=int, default=config.CONTRASTIVE_EPOCHS)
-    parser.add_argument("--batch_size", type=int, default=config.CONTRASTIVE_BATCH_SIZE)
+    parser.add_argument("--batch_size", type=int, default=config.BATCH_SIZE)
     parser.add_argument("--lr", type=float, default=config.CONTRASTIVE_LR)
     parser.add_argument("--temperature", type=float, default=config.CONTRASTIVE_TEMPERATURE)
     parser.add_argument("--proj_dim", type=int, default=config.CONTRASTIVE_PROJ_DIM)

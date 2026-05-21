@@ -96,7 +96,7 @@ SILHOUETTE_K_RANGE  = (4, 16)     # search range when K=0 (auto)      [Rousseeuw
 # NT-Xent (SimCLR) + SupCon loss to produce a class-discriminative latent space
 # for Vía B diversity sampling. The detector weights are NOT touched.
 CONTRASTIVE_EPOCHS       = 60       # ~10-20 min on a single GPU for ~3.5k images
-CONTRASTIVE_BATCH_SIZE   = 64       # batch of distinct images; each yields 2 views
+# Note: contrastive uses BATCH_SIZE (config-wide) so 2x views fit in GPU memory.
 CONTRASTIVE_LR           = 3e-4     # AdamW LR for head + unfrozen CSP block
 CONTRASTIVE_WEIGHT_DECAY = 1e-4
 CONTRASTIVE_TEMPERATURE  = 0.2      # τ in NT-Xent / SupCon  [Chen 2020; Khosla 2020]

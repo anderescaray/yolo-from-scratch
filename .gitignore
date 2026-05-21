@@ -32,10 +32,16 @@ CLAUDE.md
 
 pseudo_label_viz/
 active_query.csv
+diversity_query.csv
 
 memoria.tex
 bibliografia.bib
 evidence_yolo_active_learning.md
 informe_yolo_active_learning.md
 
+
 annotation_batches/
+deep_clustering.md
+contrastive_learning.md
+PROCEDIMIENTO.md
+
